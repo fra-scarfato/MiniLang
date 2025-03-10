@@ -1,0 +1,7 @@
+version=0.27.0
+profile=conventional
+margin=80
+line-endings=lf
+wrap-comments=true
+break-separators=after
+indicate-multiline-delimiters=closing-on-separate-line

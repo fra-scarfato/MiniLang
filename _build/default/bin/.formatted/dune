@@ -1,0 +1,6 @@
+(executable
+ (public_name MiniLang)
+ (name main)
+ (preprocess
+  (pps ppx_deriving.show))
+ (libraries MiniLang))

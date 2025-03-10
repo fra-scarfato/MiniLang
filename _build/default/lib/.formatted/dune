@@ -1,0 +1,21 @@
+(include_subdirs unqualified)
+
+(menhir
+ (modules miniImpParser))
+
+(ocamllex miniImpLexer)
+
+(library
+ (name MiniLang)
+ (preprocess
+  (pps ppx_deriving.show))
+ (modules
+  MiniImpTypes
+  MiniImpEval
+  MiniImpParser
+  MiniImpLexer
+  MiniImpCFG
+  MiniImpBlock
+  MiniImpInterpreter
+  Logger
+  MiniFunAST))

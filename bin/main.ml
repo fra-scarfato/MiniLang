@@ -1,0 +1,1 @@
+let () = MiniLang.MiniImpInterpreter.main ()

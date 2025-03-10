@@ -1,0 +1,2 @@
+def main with input x output y as
+  if x then 5 else 10
