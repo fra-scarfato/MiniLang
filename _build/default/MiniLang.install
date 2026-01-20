@@ -1,8 +1,0 @@
-lib: [
-  "_build/install/default/lib/MiniLang/META"
-  "_build/install/default/lib/MiniLang/dune-package"
-  "_build/install/default/lib/MiniLang/opam"
-]
-bin: [
-  "_build/install/default/bin/MiniImpInterpreter"
-]
