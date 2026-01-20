@@ -1,1 +1,1 @@
-lib/miniImpLexer.pp.ml: Char Lexing Logger MiniImpParser
+lib/miniImp/MiniImpLexer.pp.ml: Char Lexing MiniImpParser

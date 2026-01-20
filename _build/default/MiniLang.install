@@ -4,5 +4,5 @@ lib: [
   "_build/install/default/lib/MiniLang/opam"
 ]
 bin: [
-  "_build/install/default/bin/MiniLang"
+  "_build/install/default/bin/MiniImpInterpreter"
 ]

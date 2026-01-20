@@ -1,1 +1,1 @@
-lib/miniImpParser.pp.ml: Logger MiniImpTypes Printf
+lib/miniImp/MiniImpParser.pp.ml: MiniImpSyntax Printf

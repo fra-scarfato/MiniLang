@@ -1,1 +1,1 @@
-lib/miniImpEval.pp.ml: MemoryMap MiniImpTypes Printf
+lib/miniImp/MiniImpEval.pp.ml: MiniImpSyntax StringMap

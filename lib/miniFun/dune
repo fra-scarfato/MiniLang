@@ -1,0 +1,4 @@
+(menhir
+ (modules MiniFunParser))
+
+(ocamllex MiniFunLexer)

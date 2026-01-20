@@ -1,0 +1,33 @@
+type token =
+    WHILE
+  | VAR of string
+  | TRUE of bool
+  | TIMES
+  | THEN
+  | SKIP
+  | SEMICOLON
+  | RPAREN
+  | PLUS
+  | OUTPUT
+  | NOT
+  | MINUS
+  | LPAREN
+  | LESS
+  | INT of int
+  | IF
+  | FALSE of bool
+  | EQUAL
+  | EOF
+  | ELSE
+  | DO
+  | DEF
+  | AS
+  | AND
+val menhir_begin_marker : int
+val xv_prg : MiniImpSyntax.program
+val xv_int : int
+val xv_command_list : MiniImpSyntax.command
+val xv_command : MiniImpSyntax.command
+val xv_b_expr : MiniImpSyntax.boolean
+val xv_a_expr : MiniImpSyntax.operation
+val menhir_end_marker : int

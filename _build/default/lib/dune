@@ -1,10 +1,5 @@
 (include_subdirs unqualified)
 
-(menhir
- (modules miniImpParser))
-
-(ocamllex miniImpLexer)
-
 (library
  (name MiniLang)
  (preprocess
@@ -14,8 +9,4 @@
   MiniImpEval
   MiniImpParser
   MiniImpLexer
-  MiniImpCFG
-  MiniImpBlock
-  MiniImpInterpreter
-  Logger
-  MiniFunAST))
+  MiniImpInterpreter))

@@ -1,6 +1,20 @@
 (executable
- (public_name MiniLang)
- (name main)
+ (public_name MiniImpInterpreter)
+ (name MiniImpInterpreter)
  (preprocess
   (pps ppx_deriving.show))
  (libraries MiniLang))
+
+; (executable
+;  (public_name MiniFunInterpreter)
+;  (name MiniFunInterpreter)
+;  (preprocess
+;   (pps ppx_deriving.show))
+;  (libraries MiniLang))
+
+; (executable
+;  (public_name MiniImpCompiler)
+;  (name MiniImpCompiler)
+;  (preprocess
+;   (pps ppx_deriving.show))
+;  (libraries MiniLang))

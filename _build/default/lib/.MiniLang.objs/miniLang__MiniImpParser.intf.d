@@ -1,1 +1,1 @@
-lib/miniImpParser.pp.mli: Lexing MiniImpTypes
+lib/miniImp/MiniImpParser.pp.mli: Lexing MiniImpSyntax

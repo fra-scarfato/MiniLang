@@ -1,1 +1,1 @@
-lib/miniImpParser__mock.ml.pp.mock: Lexing Logger MiniImpTypes
+lib/miniImp/MiniImpParser__mock.ml.pp.mock: Lexing MiniImpSyntax

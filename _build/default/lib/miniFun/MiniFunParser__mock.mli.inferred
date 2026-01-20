@@ -1,0 +1,30 @@
+type token =
+    VAR of string
+  | TRUE
+  | TIMES
+  | THEN
+  | RPAREN
+  | REC
+  | PLUS
+  | NOT
+  | MINUS
+  | LPAREN
+  | LET
+  | LESS
+  | INT of int
+  | IN
+  | IF
+  | FUN
+  | FALSE
+  | EQUAL
+  | EOF
+  | ELSE
+  | ARROW
+  | AND
+val menhir_begin_marker : int
+val xv_main : MiniFunSyntax.term
+val xv_int : int
+val xv_fun_app : MiniFunSyntax.term
+val xv_expr : MiniFunSyntax.term
+val xv_atomic : MiniFunSyntax.term
+val menhir_end_marker : int

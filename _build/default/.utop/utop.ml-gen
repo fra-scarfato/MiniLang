@@ -3,6 +3,7 @@ Clflags.include_dirs :=
   ; "/home/fra/.opam/default/lib/findlib"
   ; "/home/fra/.opam/default/lib/lambda-term"
   ; "/home/fra/.opam/default/lib/logs"
+  ; "/home/fra/.opam/default/lib/logs/lwt"
   ; "/home/fra/.opam/default/lib/lwt"
   ; "/home/fra/.opam/default/lib/lwt/unix"
   ; "/home/fra/.opam/default/lib/lwt_react"

@@ -1,0 +1,4 @@
+(menhir
+ (modules MiniImpParser))
+
+(ocamllex MiniImpLexer)
