@@ -39,12 +39,9 @@ let rec eval (env : environment) = function
   | Fun (x, t) -> Closure (ClosureNoRec (x, t, env))
   (* Application of function t1 to the argument t2 *)
   | FunApp (t1, t2) -> (
-      (*
-      1. Evaluate the first argument
-      2. Check if it is a closure
-      3. If it is a closure, evaluate the argument t2
-      4. Apply the function to the argument
-      *)
+      (* 1. Evaluate the first argument 2. Check if it is a closure 3. If it is
+         a closure, evaluate the argument t2 4. Apply the function to the
+         argument *)
       let value_fun = eval env t1 in
       match value_fun with
       | Closure (ClosureNoRec (x, t, env')) ->
@@ -60,16 +57,12 @@ let rec eval (env : environment) = function
       | _ -> failwith "Expected a function"
     )
   | Let (x, t1, t2) ->
-      (*
-      1. Evaluate the term t1
-      2. Bind the result to the variable x in the environment
-      3. Evaluate the body t2 in the extended environment
-      *)
+      (* 1. Evaluate the term t1 2. Bind the result to the variable x in the
+         environment 3. Evaluate the body t2 in the extended environment *)
       let value_arg = eval env t1 in
       eval (EnvMap.add x value_arg env) t2
   | LetFun (f, x, t1, t2) ->
       let value_fun = Closure (ClosureRec (f, x, t1, env)) in
       eval (EnvMap.add f value_fun env) t2
 
-let eval_program (t : term) =
-  eval EnvMap.empty t
+let eval_program (t : term) = eval EnvMap.empty t

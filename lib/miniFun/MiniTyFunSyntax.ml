@@ -3,12 +3,11 @@ module EnvMap = Map.Make (String)
 type binary_op = Plus | Minus | Times | Less | And [@@deriving show]
 type unary_op = Not [@@deriving show]
 
-
 (* environment is a map key-value in which the values are of type "typ" *)
 type environment = typ EnvMap.t
 
 (* Value that can be defined in the environment *)
-and typ = Int | Bool | Closure of typ * typ 
+and typ = Int | Bool | Closure of typ * typ
 
 and term =
   | IntLit of int

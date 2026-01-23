@@ -1,4 +1,4 @@
-module StringMap = Map.Make(String)
+module StringMap = Map.Make (String)
 
 (* Memory: functional map from variable names to integer values *)
 type memory = int StringMap.t

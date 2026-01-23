@@ -31,41 +31,47 @@ let rec type_check (env : environment) = function
       let op = type_check env t in
       type_check_unary_op operator op
   | If (t1, t2, t3) -> (
-      (* Type check that the condition is Bool and both branches have the same type *)
+      (* Type check that the condition is Bool and both branches have the same
+         type *)
       match (type_check env t1, type_check env t2, type_check env t3) with
-      | (Bool, if_true, if_false) -> (
+      | Bool, if_true, if_false -> (
           match if_true == if_false with
           | true -> if_true
           | false -> failwith "Branches of the if must return the same type"
         )
       | _ -> failwith "Condition of the if must be a boolean"
     )
-  | Fun (x, x_type, t) -> 
-    Closure (x_type, type_check (EnvMap.add x x_type env) t)
-    
+  | Fun (x, x_type, t) ->
+      Closure (x_type, type_check (EnvMap.add x x_type env) t)
   | FunApp (t1, t2) -> (
-      (* Type check that the function is a Closure and the argument matches the input type *)
-      match type_check env t1, type_check env t2 with
-      | Closure(in_type, out_type), arg_type -> (
+      (* Type check that the function is a Closure and the argument matches the
+         input type *)
+      match (type_check env t1, type_check env t2) with
+      | Closure (in_type, out_type), arg_type -> (
           match in_type == arg_type with
           | true -> out_type
           | false -> failwith "Function argument type does not match"
         )
       | _ -> failwith "Expected a function in the application"
     )
-  | Let (x, t1, t2) -> type_check (EnvMap.add x (type_check env t1) env) t2 
+  | Let (x, t1, t2) -> type_check (EnvMap.add x (type_check env t1) env) t2
   | LetFun (f, x, f_type, t1, t2) -> (
-      (* Type check that the function has a function type and the same return type of t2 *)
+      (* Type check that the function has a function type and the same return
+         type of t2 *)
       match f_type with
       | Closure (in_type, out_type) -> (
-          let body_type = type_check (EnvMap.add x in_type (EnvMap.add f f_type env)) t1 in
+          let body_type =
+            type_check (EnvMap.add x in_type (EnvMap.add f f_type env)) t1
+          in
           match body_type == out_type with
           | true -> type_check (EnvMap.add f f_type env) t2
-          | false -> failwith "Function body type does not match the declared return type"
+          | false ->
+              failwith
+                "Function body type does not match the declared return type"
         )
       | _ -> failwith "LetFun requires a function type"
-  )
+    )
 
-  (* Return Some type if the program is well-typed, None otherwise *)
-  let type_check_program term = 
-    try Some (type_check EnvMap.empty term) with _ -> None
+(* Return Some type if the program is well-typed, None otherwise *)
+let type_check_program term =
+  try Some (type_check EnvMap.empty term) with _ -> None

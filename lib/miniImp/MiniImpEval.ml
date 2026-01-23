@@ -28,18 +28,15 @@ let rec eval_bool (mem : memory) = function
 (* Evaluate commands *)
 let rec eval_command (mem : memory) = function
   | Skip -> mem
-  | Assign (var, a) ->
-      set var (eval_op mem a) mem
+  | Assign (var, a) -> set var (eval_op mem a) mem
   | Seq (c1, c2) ->
       let mem' = eval_command mem c1 in
       eval_command mem' c2
   | If (b, c1, c2) ->
       if eval_bool mem b then eval_command mem c1 else eval_command mem c2
   | While (b, c) ->
-      if eval_bool mem b then
-        eval_command (eval_command mem c) (While (b, c))
-      else
-        mem
+      if eval_bool mem b then eval_command (eval_command mem c) (While (b, c))
+      else mem
 
 (* Run a program *)
 let eval_program (n : int) = function

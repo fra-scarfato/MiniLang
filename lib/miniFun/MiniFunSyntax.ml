@@ -1,6 +1,7 @@
 module EnvMap = Map.Make (String)
 
 type binary_op = Plus | Minus | Times | Less | And [@@deriving show]
+
 type unary_op = Not [@@deriving show]
 
 and term =
@@ -16,7 +17,6 @@ and term =
   | LetFun of string * string * term * term
 [@@deriving show]
 
-
 (* environment is a map key-value in which the values are of type "value" *)
 type environment = value EnvMap.t
 
@@ -25,5 +25,5 @@ and value = Int of int | Bool of bool | Closure of closure
 
 (* Closure represents the non-recursive function and the recursive ones *)
 and closure =
-  | ClosureNoRec of string * term  * environment        (* fun x => t*)
-  | ClosureRec of string * string * term * environment  (* letfun f x => t *)
+  | ClosureNoRec of string * term * environment (* fun x => t*)
+  | ClosureRec of string * string * term * environment (* letfun f x => t *)
