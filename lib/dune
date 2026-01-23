@@ -15,4 +15,8 @@
   MiniFunParser
   MiniFunLexer
   MiniTyFunSyntax
-  MiniTyFunTypeCheck))
+  MiniTyFunTypeCheck
+  MiniRISCSyntax
+  MiniRISCCFG
+  MiniImpToRISC
+  MiniRISCLinearize))
