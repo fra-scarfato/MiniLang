@@ -19,7 +19,7 @@
   MiniRISCSyntax
   MiniRISCUtils
   MiniRISCCFG
-  DataflowAnalysis
-  MiniRISCOptimization
-  MiniImpToRISC
+  MiniRISCDataflow
+  MiniRISCAllocation
+  MiniRISCTranslation
   MiniRISCLinearize))

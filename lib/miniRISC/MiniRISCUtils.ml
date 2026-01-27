@@ -5,6 +5,20 @@ open MiniRISCSyntax
 let input_register = Register "r_in"
 let output_register = Register "r_out"
 
+(* ========== Shared Data Structures ========== *)
+
+module RegisterSet = Set.Make (struct
+  type t = register
+
+  let compare = compare
+end)
+
+module RegisterMap = Map.Make (struct
+  type t = register
+
+  let compare = compare
+end)
+
 (* ========== Register Analysis Functions ========== *)
 
 (* Get all registers used (read) by an instruction *)
@@ -30,14 +44,14 @@ let get_defined_registers = function
   | Store _ -> [] (* Writes to memory, no register changes *)
   | Nop | Jump _ | CJump _ -> [] (* Control flow writes no registers *)
 
-(* Check if register appears in instruction *)
-let uses_register reg instr = List.mem reg (get_used_registers instr)
-let defines_register reg instr = List.mem reg (get_defined_registers instr)
-
 (* ========== Register Generation ========== *)
 
 let make_register n = Register (Printf.sprintf "r%d" n)
 let make_label n = Label (Printf.sprintf "L%d" n)
+
+(* Logging utility *)
+let log_verbose verbose fmt =
+  Printf.ksprintf (fun s -> if verbose then print_endline s else ()) fmt
 
 (* ========== String Conversion Functions ========== *)
 
@@ -81,3 +95,7 @@ let string_of_command = function
   | CJump (r, ltrue, lfalse) ->
       Printf.sprintf "cjump %s %s %s" (string_of_register r)
         (string_of_label ltrue) (string_of_label lfalse)
+
+let string_of_regset set =
+  let regs = RegisterSet.elements set in
+  "{" ^ String.concat ", " (List.map string_of_register regs) ^ "}"

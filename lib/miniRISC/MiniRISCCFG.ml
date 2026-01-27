@@ -49,6 +49,7 @@ let string_of_edge_label = function
   | False -> "[F]"
 
 let print_risc_cfg (cfg : risc_cfg) =
+  Printf.printf "\n=== MiniRISC CFG (initial translation) ===\n";
   Printf.printf "Entry: %d | Exit: %d | Blocks: %d\n" cfg.entry cfg.exit
     (BlockMap.cardinal cfg.blocks);
 

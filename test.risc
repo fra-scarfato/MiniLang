@@ -1,48 +1,40 @@
 main:
   nop
   loadi 0 => r0
-  loadi 0 => r1
-  store r0 => r1
-  loadi 0 => r0
-  load r0 => r0
   copy r0 => r_out
   jump L1
 L1:
-  loadi 0 => r0
-  loadi 1 => r1
-  store r0 => r1
-  loadi 1 => r1
-  load r1 => r1
+  loadi 0 => r1
   less r_in r1 => r_in
-  loadi 2 => r1
-  store r_in => r1
-  loadi 2 => r0
-  load r0 => r0
-  not r0 => r0
-  loadi 3 => r0
-  load r0 => r0
-  cjump r0 L3 L2
+  loadi 0 => r3
+  store r_in => r3
+  loadi 0 => r2
+  load r2 => r2
+  not r2 => r2
+  loadi 1 => r2
+  load r2 => r2
+  cjump r2 L3 L2
 L2:
   nop
   jump L4
 L3:
   add r_out r_in => r_out
-  loadi 4 => r1
-  store r_out => r1
-  loadi 4 => r0
-  load r0 => r0
-  copy r0 => r_out
-  loadi 1 => r0
-  loadi 5 => r1
-  store r0 => r1
-  loadi 5 => r1
-  load r1 => r1
-  sub r_in r1 => r_in
-  loadi 6 => r1
-  store r_in => r1
-  loadi 6 => r0
-  load r0 => r0
-  copy r0 => r_in
+  loadi 2 => r3
+  store r_out => r3
+  loadi 2 => r2
+  load r2 => r2
+  copy r2 => r_out
+  loadi 1 => r2
+  loadi 3 => r3
+  store r2 => r3
+  loadi 3 => r3
+  load r3 => r3
+  sub r_in r3 => r_in
+  loadi 4 => r3
+  store r_in => r3
+  loadi 4 => r2
+  load r2 => r2
+  copy r2 => r_in
   jump L1
 L4:
   nop

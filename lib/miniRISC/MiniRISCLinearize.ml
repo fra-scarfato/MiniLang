@@ -7,8 +7,25 @@ open MiniRISCCFG
 type labeled_instruction = LabelDef of label | Instruction of command
 type risc_program = labeled_instruction list
 
+(* ========== Printing ========== *)
+
+let string_of_labeled_instruction = function
+  | LabelDef (Label l) -> l ^ ":"
+  | Instruction cmd -> "  " ^ MiniRISCUtils.string_of_command cmd
+
+let print_risc_program prog =
+  List.iter
+    (fun instr -> Printf.printf "%s\n" (string_of_labeled_instruction instr))
+    prog
+
+(* Logging utility *)
+let log_verbose verbose fmt =
+  Printf.ksprintf (fun s -> if verbose then print_endline s else ()) fmt
+
 (* Convert RISC CFG to linear RISC code *)
-let linearize_cfg (cfg : risc_cfg) : risc_program =
+let linearize_cfg ?(verbose = false) (cfg : risc_cfg) : risc_program =
+  log_verbose verbose "\n=== CFG Linearization ===";
+
   (* Traverse blocks in ID order (could use other orderings) *)
   let blocks_list =
     BlockMap.fold (fun _ block acc -> block :: acc) cfg.blocks []
@@ -33,15 +50,13 @@ let linearize_cfg (cfg : risc_cfg) : risc_program =
         label_def @ instrs @ term @ emit_blocks rest
   in
 
-  emit_blocks blocks_list
+  let prog = emit_blocks blocks_list in
 
-(* ========== Pretty Printing ========== *)
+  if verbose then (
+    log_verbose verbose "\n--- Linear Code ---";
+    print_risc_program prog;
+    log_verbose verbose "Total instructions: %d" (List.length prog)
+  )
+  else Printf.printf "Code linearized (%d instructions)\n" (List.length prog);
 
-let string_of_labeled_instruction = function
-  | LabelDef (Label l) -> l ^ ":"
-  | Instruction cmd -> "  " ^ MiniRISCUtils.string_of_command cmd
-
-let print_risc_program prog =
-  List.iter
-    (fun instr -> Printf.printf "%s\n" (string_of_labeled_instruction instr))
-    prog
+  prog

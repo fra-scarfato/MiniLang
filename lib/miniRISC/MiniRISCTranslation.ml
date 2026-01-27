@@ -186,7 +186,10 @@ let trans_cmd_list ctx cmds =
 open MiniImpCFG
 open MiniRISCCFG
 
-let translate_cfg input_var output_var (imp_cfg : MiniImpCFG.cfg) : risc_cfg =
+let translate_cfg ?(verbose = false) input_var output_var
+    (imp_cfg : MiniImpCFG.cfg) : risc_cfg =
+  log_verbose verbose "\n=== MiniImp -> MiniRISC ===";
+
   (* Create labels for all blocks *)
   let block_labels =
     MiniImpCFG.BlockMap.mapi (fun id _ -> make_label id) imp_cfg.blocks
@@ -261,10 +264,38 @@ let translate_cfg input_var output_var (imp_cfg : MiniImpCFG.cfg) : risc_cfg =
       imp_cfg.edges MiniRISCCFG.BlockMap.empty
   in
 
-  {
-    blocks = risc_blocks;
-    edges = risc_edges;
-    entry = imp_cfg.entry;
-    exit = imp_cfg.exit;
-  }
+  let cfg =
+    {
+      blocks = risc_blocks;
+      edges = risc_edges;
+      entry = imp_cfg.entry;
+      exit = imp_cfg.exit;
+    }
+  in
 
+  let num_regs =
+    MiniRISCCFG.BlockMap.fold
+      (fun _ block acc ->
+        List.fold_left
+          (fun a cmd ->
+            let used = get_used_registers cmd in
+            let defined = get_defined_registers cmd in
+            List.length used + List.length defined + a
+          )
+          acc
+          (block.commands @ Option.to_list block.terminator)
+      )
+      cfg.blocks 0
+  in
+
+  if verbose then (
+    MiniRISCCFG.print_risc_cfg cfg;
+    log_verbose verbose "MiniRISC CFG: %d blocks, ~%d register operations"
+      (MiniRISCCFG.BlockMap.cardinal cfg.blocks)
+      num_regs
+  )
+  else
+    Printf.printf "MiniRISC CFG translated (%d blocks)\n"
+      (MiniRISCCFG.BlockMap.cardinal cfg.blocks);
+
+  cfg

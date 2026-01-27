@@ -19,56 +19,47 @@ type cfg = {
   exit : block_id;
 }
 
-(* ========== CFG Analysis Helpers ========== *)
+(* ========== Printing Functions ========== *)
 
-(* Get all variables used (read) in a command *)
-let rec get_used_vars_op = function
-  | Constant _ -> []
-  | Variable v -> [ v ]
-  | Plus (op1, op2) | Minus (op1, op2) | Times (op1, op2) ->
-      get_used_vars_op op1 @ get_used_vars_op op2
+let get_successors (cfg : cfg) block_id =
+  match BlockMap.find_opt block_id cfg.edges with
+  | Some succs -> succs
+  | None -> []
 
-let rec get_used_vars_bool = function
-  | Bool _ -> []
-  | And (b1, b2) -> get_used_vars_bool b1 @ get_used_vars_bool b2
-  | Not b -> get_used_vars_bool b
-  | Less (op1, op2) -> get_used_vars_op op1 @ get_used_vars_op op2
+let string_of_edge_label = function
+  | Unconditional -> ""
+  | True -> "[T]"
+  | False -> "[F]"
 
-let rec get_used_vars_cmd = function
-  | Skip -> []
-  | Assign (_, op) -> get_used_vars_op op
-  | Seq (c1, c2) -> get_used_vars_cmd c1 @ get_used_vars_cmd c2
-  | If (cond, c1, c2) ->
-      get_used_vars_bool cond @ get_used_vars_cmd c1 @ get_used_vars_cmd c2
-  | While (cond, c) -> get_used_vars_bool cond @ get_used_vars_cmd c
+let string_of_command_short = function
+  | Skip -> "skip"
+  | Assign (v, _) -> Printf.sprintf "%s := ..." v
+  | Seq _ -> "seq"
+  | If _ -> "if"
+  | While _ -> "while"
 
-(* Get all variables defined (written) in a command *)
-let rec get_defined_vars_cmd = function
-  | Skip -> []
-  | Assign (v, _) -> [ v ]
-  | Seq (c1, c2) -> get_defined_vars_cmd c1 @ get_defined_vars_cmd c2
-  | If (_, c1, c2) -> get_defined_vars_cmd c1 @ get_defined_vars_cmd c2
-  | While (_, c) -> get_defined_vars_cmd c
+let print_cfg cfg =
+  Printf.printf "Entry: %d | Exit: %d | Blocks: %d\n" cfg.entry cfg.exit
+    (BlockMap.cardinal cfg.blocks);
 
-(* Get all variables in a block *)
-let get_block_used_vars block = List.concat_map get_used_vars_cmd block.stmts
+  BlockMap.iter
+    (fun id block ->
+      let stmts_str =
+        block.stmts |> List.map string_of_command_short |> String.concat "; "
+      in
+      Printf.printf "\nBlock %d:\n  Stmts: %s\n" id stmts_str;
 
-let get_block_defined_vars block =
-  List.concat_map get_defined_vars_cmd block.stmts
-
-(* Remove duplicates from variable list - pure functional *)
-let unique_vars vars = List.sort_uniq String.compare vars
-
-(* Get all variables in entire CFG *)
-let get_all_vars cfg =
-  BlockMap.fold
-    (fun _ block acc ->
-      let used = get_block_used_vars block in
-      let defined = get_block_defined_vars block in
-      acc @ used @ defined
+      let succs = get_successors cfg id in
+      if succs <> [] then
+        List.iter
+          (fun (succ_id, label) ->
+            Printf.printf "  --> %d %s\n" succ_id (string_of_edge_label label)
+          )
+          succs
+      else Printf.printf "  (no successors)\n"
     )
-    cfg.blocks []
-  |> unique_vars
+    cfg.blocks;
+  Printf.printf "-----------\n"
 
 (* ========== Builder with Block Mutation Support ========== *)
 
@@ -202,7 +193,13 @@ let rec gen_stmts builder current_block_id cmds =
 
 (* ========== Public API ========== *)
 
-let generate_cfg (Prog (_, _, body)) =
+(* Logging utility *)
+let log_verbose verbose fmt =
+  Printf.ksprintf (fun s -> if verbose then print_endline s else ()) fmt
+
+let generate_cfg ?(verbose = false) (Prog (_, _, body)) =
+  log_verbose verbose "\n=== MiniImp CFG Generation ===";
+
   let builder = create_builder () in
 
   (* Start with an Entry Block with Skip *)
@@ -217,58 +214,21 @@ let generate_cfg (Prog (_, _, body)) =
   let builder = append_stmt builder exit_id Skip in
   let builder = add_edge builder final_id exit_id Unconditional in
 
-  {
-    blocks = builder.blocks;
-    edges = builder.edges;
-    entry = entry_id;
-    exit = exit_id;
-  }
+  let cfg =
+    {
+      blocks = builder.blocks;
+      edges = builder.edges;
+      entry = entry_id;
+      exit = exit_id;
+    }
+  in
 
-(* ========== Printing Functions ========== *)
+  if verbose then (
+    print_cfg cfg;
+    log_verbose verbose "MiniImp CFG: %d blocks" (BlockMap.cardinal cfg.blocks)
+  )
+  else
+    Printf.printf "MiniImp CFG generated (%d blocks)\n"
+      (BlockMap.cardinal cfg.blocks);
 
-let get_successors (cfg : cfg) block_id =
-  match BlockMap.find_opt block_id cfg.edges with
-  | Some succs -> succs
-  | None -> []
-
-let string_of_edge_label = function
-  | Unconditional -> ""
-  | True -> "[T]"
-  | False -> "[F]"
-
-let string_of_command_short = function
-  | Skip -> "skip"
-  | Assign (v, _) -> Printf.sprintf "%s := ..." v
-  | Seq _ -> "seq"
-  | If _ -> "if"
-  | While _ -> "while"
-
-let print_cfg cfg =
-  Printf.printf "Entry: %d | Exit: %d | Blocks: %d\n" cfg.entry cfg.exit
-    (BlockMap.cardinal cfg.blocks);
-
-  BlockMap.iter
-    (fun id block ->
-      let stmts_str =
-        block.stmts |> List.map string_of_command_short |> String.concat "; "
-      in
-      Printf.printf "\nBlock %d:\n  Stmts: %s\n" id stmts_str;
-
-      (* Show used and defined variables *)
-      let used = get_block_used_vars block |> unique_vars in
-      let defined = get_block_defined_vars block |> unique_vars in
-      if used <> [] then Printf.printf "  Uses: %s\n" (String.concat ", " used);
-      if defined <> [] then
-        Printf.printf "  Defs: %s\n" (String.concat ", " defined);
-
-      let succs = get_successors cfg id in
-      if succs <> [] then
-        List.iter
-          (fun (succ_id, label) ->
-            Printf.printf "  --> %d %s\n" succ_id (string_of_edge_label label)
-          )
-          succs
-      else Printf.printf "  (no successors)\n"
-    )
-    cfg.blocks;
-  Printf.printf "-----------\n"
+  cfg
