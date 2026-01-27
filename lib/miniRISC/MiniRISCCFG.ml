@@ -1,4 +1,5 @@
 open MiniRISCSyntax
+open MiniRISCUtils
 
 (* ========== MiniRISC CFG Data Structures ========== *)
 
@@ -41,55 +42,14 @@ let get_predecessors (cfg : risc_cfg) block_id =
     )
     cfg.edges []
 
+(* ========== Printing Functions ========== *)
 let string_of_edge_label = function
   | Unconditional -> ""
   | True -> "[T]"
   | False -> "[F]"
 
-let string_of_register (Register r) = r
-let string_of_label (Label l) = l
-
-let string_of_brop = function
-  | Add -> "add"
-  | Sub -> "sub"
-  | Mult -> "mult"
-  | And -> "and"
-  | Less -> "less"
-
-let string_of_biop = function
-  | AddI -> "addi"
-  | SubI -> "subi"
-  | MultI -> "multi"
-  | AndI -> "andi"
-
-let string_of_urop = function Not -> "not" | Copy -> "copy"
-
-let string_of_command = function
-  | Nop -> "nop"
-  | BinRegOp (op, r1, r2, r3) ->
-      Printf.sprintf "%s %s %s => %s" (string_of_brop op)
-        (string_of_register r1) (string_of_register r2) (string_of_register r3)
-  | BinImmOp (op, r, n, rd) ->
-      Printf.sprintf "%s %s %d => %s" (string_of_biop op) (string_of_register r)
-        n (string_of_register rd)
-  | UnaryOp (op, r1, r2) ->
-      Printf.sprintf "%s %s => %s" (string_of_urop op) (string_of_register r1)
-        (string_of_register r2)
-  | Load (r1, r2) ->
-      Printf.sprintf "load %s => %s" (string_of_register r1)
-        (string_of_register r2)
-  | LoadI (n, r) -> Printf.sprintf "loadi %d => %s" n (string_of_register r)
-  | Store (r1, r2) ->
-      Printf.sprintf "store %s => %s" (string_of_register r1)
-        (string_of_register r2)
-  | Jump lbl -> Printf.sprintf "jump %s" (string_of_label lbl)
-  | CJump (r, ltrue, lfalse) ->
-      Printf.sprintf "cjump %s %s %s" (string_of_register r)
-        (string_of_label ltrue) (string_of_label lfalse)
-
 let print_risc_cfg (cfg : risc_cfg) =
-  Printf.printf "=== MiniRISC CFG ===\nEntry: %d | Exit: %d | Blocks: %d\n"
-    cfg.entry cfg.exit
+  Printf.printf "Entry: %d | Exit: %d | Blocks: %d\n" cfg.entry cfg.exit
     (BlockMap.cardinal cfg.blocks);
 
   BlockMap.iter

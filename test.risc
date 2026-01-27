@@ -1,0 +1,48 @@
+main:
+  nop
+  loadi 0 => r0
+  loadi 0 => r1
+  store r0 => r1
+  loadi 0 => r0
+  load r0 => r0
+  copy r0 => r_out
+  jump L1
+L1:
+  loadi 0 => r0
+  loadi 1 => r1
+  store r0 => r1
+  loadi 1 => r1
+  load r1 => r1
+  less r_in r1 => r_in
+  loadi 2 => r1
+  store r_in => r1
+  loadi 2 => r0
+  load r0 => r0
+  not r0 => r0
+  loadi 3 => r0
+  load r0 => r0
+  cjump r0 L3 L2
+L2:
+  nop
+  jump L4
+L3:
+  add r_out r_in => r_out
+  loadi 4 => r1
+  store r_out => r1
+  loadi 4 => r0
+  load r0 => r0
+  copy r0 => r_out
+  loadi 1 => r0
+  loadi 5 => r1
+  store r0 => r1
+  loadi 5 => r1
+  load r1 => r1
+  sub r_in r1 => r_in
+  loadi 6 => r1
+  store r_in => r1
+  loadi 6 => r0
+  load r0 => r0
+  copy r0 => r_in
+  jump L1
+L4:
+  nop

@@ -244,8 +244,7 @@ let string_of_command_short = function
   | While _ -> "while"
 
 let print_cfg cfg =
-  Printf.printf "--- CFG ---\nEntry: %d | Exit: %d | Blocks: %d\n" cfg.entry
-    cfg.exit
+  Printf.printf "Entry: %d | Exit: %d | Blocks: %d\n" cfg.entry cfg.exit
     (BlockMap.cardinal cfg.blocks);
 
   BlockMap.iter

@@ -55,24 +55,8 @@ let () =
 
   (* Read and parse the program from the specified file *)
   let program = read_program in_file_name in
-  let (Prog (input_var, output_var, _)) = program in
 
   (* Evaluate the program with the provided input integer *)
   let result = MiniImpEval.eval_program input_int program in
-
-  (* Generate and print CFGs *)
-  let imp_cfg = MiniImpCFG.generate_cfg program in
-  Printf.printf "\n=== MiniImp CFG ===\n";
-  MiniImpCFG.print_cfg imp_cfg;
-
-  (* Translate to RISC CFG *)
-  let risc_cfg = MiniImpToRISC.translate_cfg input_var output_var imp_cfg in
-  Printf.printf "\n";
-  MiniRISCCFG.print_risc_cfg risc_cfg;
-
-  (* Linearize to RISC program *)
-  let risc_program = MiniRISCLinearize.linearize_cfg risc_cfg in
-  Printf.printf "\n=== MiniRISC Linear Code ===\n";
-  MiniRISCLinearize.print_risc_program risc_program;
 
   Printf.printf "\nThe result of the evaluation is: %i\n" result

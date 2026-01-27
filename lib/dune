@@ -17,6 +17,9 @@
   MiniTyFunSyntax
   MiniTyFunTypeCheck
   MiniRISCSyntax
+  MiniRISCUtils
   MiniRISCCFG
+  DataflowAnalysis
+  MiniRISCOptimization
   MiniImpToRISC
   MiniRISCLinearize))

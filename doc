@@ -1,0 +1,99 @@
+Here is the updated and comprehensive **Design Summary**. This document integrates our latest decisions on optimization strategy and provides the detailed rationale for the CFG construction methods.
+
+---
+
+# Compiler Design Specification: MiniImp to MiniRISC
+
+## 1. Control Flow Graph (CFG) Construction
+
+**Decision: Single-Pass "Flatten & Accumulate" (Maximal Basic Blocks)**
+
+We rejected the "Naive Generation + Simplification" approach in favor of a robust, single-pass construction that builds Maximal Basic Blocks immediately.
+
+### The Problem: Handling `Seq` (Sequences)
+
+In the AST, code like `x=1; y=2; z=3` is represented recursively: `Seq(Assign(x,1), Seq(Assign(y,2), Assign(z,3)))`. The compiler must decide how to map this to blocks.
+
+### Comparison of Strategies
+
+| Strategy | **Option A: Naive + Two-Pass** | **Option B: Flatten & Accumulate (Chosen)** |
+| --- | --- | --- |
+| **Process** | 1. **Gen:** Recursively map every `Stmt` to a new `Block`.<br>
+
+<br>2. **Simplify:** Run a complex graph algorithm to find linear chains and merge them. | 1. **Flatten:** Convert the AST tree into a linear list `[Stmt]`.<br>
+
+<br>2. **Accumulate:** Iterate the list, appending to the *current* block until a branch forces a split. |
+| **Efficiency** | **Low.** Allocates memory for hundreds of tiny blocks only to destroy them immediately. Complexity approaches  in worst-case merging. | **High.** Allocates exactly the number of blocks needed. Complexity is linear . |
+| **Robustness** | **Risky.** Merging blocks requires careful handling of labels. If `Block B` has a label `L1`, merging `A` and `B` might delete `L1`, breaking potential jumps. | **Safe.** Labels are assigned to block entry points only when necessary. No labels are "lost" because no blocks are destroyed. |
+| **Output** | Initially fragmented, relies on the optimizer to fix it. | Immediately optimal (Maximal Basic Blocks). |
+
+**Why we chose Option B:** It produces a clean, efficient graph by design ("Correct by Construction") rather than relying on a cleanup pass ("Construct by Correction").
+
+---
+
+## 2. Optimization Strategy & Future-Proofing
+
+**Decision: Early Integration of Algebraic & Peephole Optimizations**
+
+We decided to implement "local" optimizations *during* the translation phase rather than waiting until the end. This is a strategic choice to facilitate the upcoming **Liveness Analysis**.
+
+### The Logic: "Simplify Before You Analyze"
+
+Liveness Analysis (calculating which variables are active) is computationally expensive and depends on the number of instructions. By optimizing early, we reduce the workload for the analyzer.
+
+### Implemented Optimizations
+
+#### A. Algebraic Simplification (In `trans_op`)
+
+We detect identity patterns during the AST traversal:
+
+* `x + 0`  No code generated.
+* `x * 0`  `LoadI 0`.
+* **Strategic Benefit:** This removes false dependencies. If we generated `add r1, r0 => r2`, the analyzer would think `r1` and `r0` are "live". By simplifying it to `copy r1 => r2` (or nothing), we shrink the interference graph used for register allocation.
+
+#### B. Peephole Optimization (Post-Generation)
+
+We scan the generated instruction list for inefficiencies introduced by our generation strategy:
+
+* Pattern: `LoadI n, r1` followed by `Copy r1, r2`.
+* Action: Merge into `LoadI n, r2` (if `r1` is dead).
+* **Strategic Benefit:** Our "Compute & Copy" strategy generates many temporary copies. Cleaning them up now prevents the Liveness Analyzer from having to track hundreds of temporary registers that live for only one line.
+
+---
+
+## 3. Code Generation Strategy
+
+**Decision: "Compute & Copy" (Strategy A)**
+
+We strictly separated **Calculation** from **Assignment**.
+
+* **The Rule:** `trans_op` *always* returns a fresh temporary register containing the result. It never writes directly to a named variable.
+* **The Rule:** `trans_cmd` handles the writing. It checks if the variable exists and emits a `Copy` instruction to update the specific register.
+
+**Why:**
+This avoided the **"Destination-Passing Trap"** (Strategy B), where passing a target register down the tree caused an Infinite Loop Bug. By forcing explicit copies, we guaranteed that the Loop Header (which reads the old register) is never invalidated by the Loop Body (which writes the new register) until the data is explicitly moved.
+
+---
+
+## 4. Variable Storage Model
+
+**Decision: Virtual Registers with Pre-Seeding**
+
+* **Virtual Registers:** We map variables to strings (`"r0"`, `"r1"`) rather than memory addresses. We use `Copy` instead of `Store`.
+* **Pre-Seeding:** The compilation context starts with `{ "in": "r_in", "out": "r_out" }`.
+* **Benefit:** This guarantees that the Input/Output interface with the external test harness remains stable, regardless of how many other internal registers are allocated.
+
+---
+
+## Final Architecture Diagram
+
+1. **Parser:** Produces AST.
+2. **CFG Builder:** Flattens `Seq` nodes  Accumulates Instructions  Produces Maximal Basic Blocks.
+3. **Translator:**
+* *Input:* `x + 0`
+* *Algebraic Opt:* Detects Identity.
+* *Gen:* Emits `Assign` via `Copy`.
+
+
+4. **Peephole Opt:** Cleans up `Load` + `Copy` sequences.
+5. **Result:** Optimized, Analysis-Ready RISC Code.

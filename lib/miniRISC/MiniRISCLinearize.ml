@@ -39,12 +39,9 @@ let linearize_cfg (cfg : risc_cfg) : risc_program =
 
 let string_of_labeled_instruction = function
   | LabelDef (Label l) -> l ^ ":"
-  | Instruction cmd -> "  " ^ MiniRISCCFG.string_of_command cmd
+  | Instruction cmd -> "  " ^ MiniRISCUtils.string_of_command cmd
 
 let print_risc_program prog =
   List.iter
     (fun instr -> Printf.printf "%s\n" (string_of_labeled_instruction instr))
     prog
-
-let program_to_string prog =
-  prog |> List.map string_of_labeled_instruction |> String.concat "\n"

@@ -5,6 +5,11 @@
   (pps ppx_deriving.show))
  (libraries MiniLang))
 
+(executable
+ (public_name MiniImpCompiler)
+ (name MiniImpCompiler)
+ (libraries MiniLang))
+
 ; (executable
 ;  (public_name MiniFunInterpreter)
 ;  (name MiniFunInterpreter)

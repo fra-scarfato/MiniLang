@@ -1,14 +1,6 @@
 open MiniImpSyntax
 open MiniRISCSyntax
-
-(* ========== Simple Counter-based Generation ========== *)
-
-let make_register n = Register (Printf.sprintf "r%d" n)
-let make_label n = Label (Printf.sprintf "L%d" n)
-
-(* Special registers *)
-let input_register = Register "r_in"
-let output_register = Register "r_out"
+open MiniRISCUtils
 
 (* ========== Variable to Register Mapping ========== *)
 
@@ -21,55 +13,6 @@ type context = {
   output_var : string; (* name of output parameter *)
   all_registers : register list; (* track all allocated registers *)
 }
-
-(* Get all registers used (read) by an instruction *)
-let get_used_registers = function
-  | LoadI _ -> [] (* Immediate load reads nothing *)
-  | UnaryOp (_, src, _) -> [ src ] (* Reads source *)
-  | BinRegOp (_, r1, r2, _) -> [ r1; r2 ] (* Reads both operands *)
-  | BinImmOp (_, r1, _, _) -> [ r1 ] (* Reads the register operand *)
-  | Load (addr_reg, _) ->
-      [ addr_reg ] (* Reads the address register to fetch memory *)
-  | Store (val_reg, addr_reg) ->
-      [ val_reg; addr_reg ] (* Reads value to store and address *)
-  | CJump (cond_reg, _, _) -> [ cond_reg ] (* Reads condition *)
-  | Nop | Jump _ -> [] (* Reads nothing *)
-
-(* Get all registers defined (written) by an instruction *)
-let get_defined_registers = function
-  | LoadI (_, dst) -> [ dst ] (* Writes immediate to dest *)
-  | UnaryOp (_, _, dst) -> [ dst ] (* Writes result to dest *)
-  | BinRegOp (_, _, _, dst) -> [ dst ] (* Writes result to dest *)
-  | BinImmOp (_, _, _, dst) -> [ dst ] (* Writes result to dest *)
-  | Load (_, dst) -> [ dst ] (* Writes loaded memory value to dest *)
-  | Store _ -> [] (* Writes to memory. No register changes. *)
-  | Nop | Jump _ | CJump _ -> [] (* Control flow writes no registers *)
-
-(* Check if register appears in instruction *)
-let uses_register reg instr = List.mem reg (get_used_registers instr)
-let defines_register reg instr = List.mem reg (get_defined_registers instr)
-
-(* ========== Peephole Optimization ========== *)
-
-(* Remove redundant instructions - pure functional list transformation *)
-let rec peephole = function
-  | [] -> []
-  (* Remove self-copy: Copy r1, r1 -> remove *)
-  | UnaryOp (Copy, r1, r2) :: rest when r1 = r2 -> peephole rest
-  (* Fold consecutive copies: Copy r1, r2; Copy r2, r3 -> Copy r1, r3 *)
-  | UnaryOp (Copy, r1, r2) :: UnaryOp (Copy, r2', r3) :: rest when r2 = r2' ->
-      peephole (UnaryOp (Copy, r1, r3) :: rest)
-  (* Remove Nop *)
-  | Nop :: rest -> peephole rest
-  (* LoadI followed by copy: LoadI n, r1; Copy r1, r2 -> LoadI n, r2 *)
-  (* ATTENTION: This optimization assumes no side effects and that r1 is not used elsewhere *)
-  | LoadI (n, r1) :: UnaryOp (Copy, r1', r2) :: rest when r1 = r1' ->
-      peephole (LoadI (n, r2) :: rest)
-  (* Keep everything else *)
-  | instr :: rest -> instr :: peephole rest
-
-(* Apply peephole optimization to command list *)
-let optimize_commands cmds = peephole cmds
 
 (* ========== Expression Translation with Optimizations ========== *)
 
@@ -324,3 +267,4 @@ let translate_cfg input_var output_var (imp_cfg : MiniImpCFG.cfg) : risc_cfg =
     entry = imp_cfg.entry;
     exit = imp_cfg.exit;
   }
+
