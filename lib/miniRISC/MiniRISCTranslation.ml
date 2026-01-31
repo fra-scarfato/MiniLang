@@ -3,7 +3,7 @@ open MiniRISCSyntax
 open MiniRISCUtils
 
 (* =============================================================================
- * MINIIMP TO MINIRICS TRANSLATION: From High-Level to Low-Level
+ * MINIIMP TO MINIRIS TRANSLATION: From High-Level to Low-Level
  * =============================================================================
  *
  * This module is the "compiler" phase that translates from MiniImp (with
@@ -74,10 +74,8 @@ let rec trans_op ctx = function
       let ctx', r = allocate_register ctx in
       (ctx', r, [ LoadI (n, r) ])
   | Variable v -> (
-      if
-        (* Check if it's input/output variable or regular variable *)
-        v = ctx.input_var
-      then (ctx, input_register, [])
+      (* Check if it's input/output variable or regular variable *)
+      if v = ctx.input_var then (ctx, input_register, [])
       else if v = ctx.output_var then (ctx, output_register, [])
       else
         match VarMap.find_opt v ctx.var_to_reg with
@@ -88,8 +86,9 @@ let rec trans_op ctx = function
             let ctx'' =
               { ctx' with var_to_reg = VarMap.add v r ctx'.var_to_reg }
             in
-            (ctx'', r, []) (* ===== ALGEBRAIC SIMPLIFICATION FOR PLUS ===== *)
+            (ctx'', r, []) 
     )
+  (* ===== ALGEBRAIC SIMPLIFICATION FOR PLUS ===== *)
   (* Identity: x + 0 = x *)
   | Plus (op, Constant 0) | Plus (Constant 0, op) -> trans_op ctx op
   (* Constant folding: c1 + c2 *)
@@ -208,7 +207,7 @@ let rec trans_cmd ctx = function
       let ctx, cond_reg, cmds = trans_bool ctx cond in
       (ctx, cmds, Some cond_reg)
 
-(* Translate a list of commands and apply peephole optimization *)
+(* Translate a list of commands of MiniImp in MiniRISC *)
 let trans_cmd_list ctx cmds =
   let ctx, acc_cmds, cond_reg =
     List.fold_left
@@ -218,7 +217,6 @@ let trans_cmd_list ctx cmds =
       )
       (ctx, [], None) cmds
   in
-  (* Apply peephole optimization to the generated commands *)
   (ctx, acc_cmds, cond_reg)
 
 (* ========== CFG Translation ========== *)

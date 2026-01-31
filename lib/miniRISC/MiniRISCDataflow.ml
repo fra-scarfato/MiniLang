@@ -6,9 +6,7 @@ open MiniRISCUtils
  * =============================================================================
  *
  * Dataflow analysis is how compilers figure out properties of a program by
- * analyzing the control flow graph. It's like being a detective: you look at
- * the code structure and deduce what MUST be true or MIGHT be true at each
- * point in the program.
+ * analyzing the control flow graph.
  *
  * We implement TWO analyses here:
  *
@@ -33,19 +31,6 @@ open MiniRISCUtils
  *   - We're working with finite sets (registers)
  *   - Updates are monotonic (sets only grow or shrink, never oscillate)
  *   - There's a maximum size (all registers) we can't exceed
- *
- * WHY NOT JUST SIMULATE?
- * ----------------------
- * You might ask: "Why not just run the program and track what happens?"
- *
- * Because of CONTROL FLOW. Consider:
- *   if (input > 0) { x = 5 } else { x = 10 }
- *   output = x
- *
- * We can't know which branch runs without the input value. But we CAN deduce:
- * "No matter which branch runs, x is definitely defined before output."
- *
- * Dataflow gives us guarantees that work for ALL possible executions.
  *)
 
 (* Get all registers used in the CFG *)
@@ -68,7 +53,7 @@ let get_all_registers cfg =
  *
  * GOAL: At each program point, know which variables are DEFINITELY defined.
  *
- * WHY "MUST" NOT "MAY"?
+ * "MUST" ANALYSIS
  * --------------------
  * This is a MUST analysis: we only mark a variable as "definitely defined"
  * if it's defined on ALL paths reaching this point.
@@ -76,8 +61,8 @@ let get_all_registers cfg =
  * Example:
  *   Block 1: if (input > 0) goto Block 2 else goto Block 3
  *   Block 2: x = 5; goto Block 4
- *   Block 3: goto Block 4  
- *   Block 4: output = x  // ERROR! x not defined on path 1->3->4
+ *   Block 3: goto Block 4
+ *   Block 4: output = x    // ERROR! x not defined on path 1->3->4
  *
  * At Block 4's entry, x is NOT definitely defined (path 1->3->4 skips it).
  *
@@ -98,11 +83,12 @@ let get_all_registers cfg =
  * Everything else is undefined.
  *
  * Computed Value: Set of definitely defined variables (registers)
-   Analysis State: Associate IN and OUT values to each block
-   - IN[B]: variables defined at block entry
-   - OUT[B]: variables defined at block exit
-   Local Update: OUT[B] = IN[B] ∪ Defined[B]
-   Global Update: IN[B] = ∩ OUT[P] for all predecessors P *)
+ * Analysis State: Associate IN and OUT values to each block
+ *   - IN[B]: variables defined at block entry
+ *   - OUT[B]: variables defined at block exit
+ * Local Update: OUT[B] = IN[B] ∪ Defined[B]
+ * Global Update: IN[B] = ∩ OUT[P] for all predecessors P
+ *)
 module DefiniteVariables = struct
   (* Analysis State: maps block_id -> (IN, OUT) sets *)
   type analysis_result = {
@@ -110,7 +96,17 @@ module DefiniteVariables = struct
     out_sets : RegisterSet.t BlockMap.t;
   }
 
-  (* Compute variables defined by this block *)
+  (* ---------------------------------------------------------------------------
+   * compute_defined: Extract Defined Registers from a Block
+   * ---------------------------------------------------------------------------
+   *
+   * Returns the set of all registers that are WRITTEN by commands in this block.
+   * This is the GEN set for definite variables analysis.
+   *
+   * EXAMPLE:
+   *   Block: [add r1 r2 => r3; copy r3 => r4]
+   *   Result: {r3, r4}
+   *)
   let compute_defined (block : risc_cfg_block) : RegisterSet.t =
     (* Accumulate the register defined in the block *)
     List.fold_left
@@ -192,6 +188,21 @@ module DefiniteVariables = struct
     log_verbose verbose "Fixpoint reached after %d iterations" final_iteration;
     { in_sets = final_in; out_sets = final_out }
 
+  (* ---------------------------------------------------------------------------
+   * check_safety: Verify All Registers Are Initialized Before Use
+   * ---------------------------------------------------------------------------
+   *
+   * Uses definite variables analysis to detect uninitialized register usage.
+   * Returns true if the program is safe, false otherwise.
+   *
+   * ERROR DETECTION:
+   * For each instruction, checks if all USE registers are in the definitely-
+   * defined set at that point. If not, reports an error.
+   *
+   * EXAMPLE ERROR:
+   *   Block 1: add r1 r2 => r3    // r2 undefined!
+   *   Output: "Block 1: Register r2 used before definition"
+   *)
   let check_safety ?(verbose = false) (cfg : risc_cfg) : bool =
     log_verbose verbose "\n=== SAFETY CHECK ===";
 
@@ -292,59 +303,92 @@ module DefiniteVariables = struct
         false
 end
 
-(* ========== Live Variables Analysis (Backward / May) ========== *)
-(* Computed Value: Set of live variables (registers that may be used later)
-   Analysis State: Associate IN and OUT values to each block
-   - IN[B]: variables live at block entry
-   - OUT[B]: variables live at block exit
-   Local Update: IN[B] = UpwardExposed[B] ∪ (OUT[B] - Killed[B])
-   Global Update: OUT[B] = ∪ IN[S] for all successors S *)
+
 (* =============================================================================
- * LIVE VARIABLES ANALYSIS (Backward, May) with INSTRUCTION-LEVEL PRECISION
+ * LIVE VARIABLES ANALYSIS (Backward, May)
  * =============================================================================
  *
  * GOAL: At each program point, know which variables MIGHT be used later.
  *
- * TWO-LEVEL APPROACH:
- * -------------------
- * 1. BLOCK-LEVEL: Compute liveness at block boundaries (IN/OUT sets)
+ * "MAY" ANALYSIS
+ * --------------------
+ * This is a MAY analysis: we mark a variable as "live" if it MIGHT be used
+ * on ANY path from this point forward.
+ *
+ * Example:
+ *   Block 1: x = 5; if (input > 0) goto Block 2 else goto Block 3
+ *   Block 2: output = x; goto Block 4
+ *   Block 3: output = 0; goto Block 4
+ *   Block 4: halt
+ *
+ * At Block 1's exit, x is live because it's used in Block 2 (even though
+ * Block 3 doesn't use it - it's used on at least ONE path).
+ *
+ * THE ALGORITHM:
+ * --------------
+ * Direction: BACKWARD (reverse execution order)
+ * Meet: UNION (∪) - a variable is live if it's live on ANY outgoing path
+ * Transfer: IN[B] = UpwardExposed[B] ∪ (OUT[B] - Killed[B])
+ *   where:
+ *     UpwardExposed[B] = variables used before being defined in B
+ *     Killed[B] = variables defined in B
+ *
+ * INITIALIZATION: BOTTOM (empty set)
+ * Why start with "nothing is live"? Because we're computing a MAY analysis
+ * via Least Fixed Point. Starting from BOTTOM and growing up ensures we
+ * discover all variables that might be live without being overly pessimistic.
+ *
+ * SPECIAL CASE: Exit block
+ * At program exit, only r_out is live (it's the output register).
+ * Everything else is dead.
+ *
+ * TWO-LEVEL PRECISION:
+ * --------------------
+ * We compute liveness at TWO granularities:
+ *
+ * 1. BLOCK-LEVEL: Liveness at block boundaries (IN/OUT sets)
  *    - Needed for correctness across control flow (branches, loops)
  *    - Uses iterative fixpoint algorithm
+ *    - Gives us: "Which registers are live when entering/exiting this block?"
  *
- * 2. INSTRUCTION-LEVEL: Refine liveness within each block
+ * 2. INSTRUCTION-LEVEL: Liveness after each instruction within blocks
  *    - Once block-level converges, propagate backward through instructions
  *    - Gives precise lifetimes for sequential code in same block
  *    - No iteration needed: simple backward walk
+ *    - Gives us: "Which registers are live after executing instruction i?"
  *
- * WHY THIS MATTERS:
- * -----------------
+ * WHY INSTRUCTION-LEVEL MATTERS:
+ * -------------------------------
  * Block-level alone sees: "r1, r2, r3 all live somewhere in this block"
  * Instruction-level sees: "r1 dies at instr 2, r2 at instr 4, r3 at instr 6"
  *
  * This enables aggressive coalescing of sequential variables!
  *
- * EXAMPLE:
+ * Example:
  *   Instr 0: r1 = x + 1      // r1 born
- *   Instr 1: r2 = r1 + 2     // r1 dies (last use), r2 born  
+ *   Instr 1: r2 = r1 + 2     // r1 dies (last use), r2 born
  *   Instr 2: r3 = r2 + 3     // r2 dies, r3 born
  *   Instr 3: out = r3        // r3 dies
  *
  * Block-level: r1, r2, r3 all appear to interfere
- * Instruction-level: r1, r2, r3 have disjoint lifetimes → can merge!
+ * Instruction-level: r1, r2, r3 have disjoint lifetimes → can merge into 1 register!
+ *
+ * Computed Value: Set of live variables (registers)
+ * Analysis State: Associate IN and OUT values to each block + instruction
+ *   - IN[B]: variables live at block entry
+ *   - OUT[B]: variables live at block exit
+ *   - LIVE_AFTER[B, i]: variables live after instruction i in block B
+ * Local Update: IN[B] = UpwardExposed[B] ∪ (OUT[B] - Killed[B])
+ * Global Update: OUT[B] = ∪ IN[S] for all successors S
+ * Instruction Update: LIVE_AFTER[B, i] = (LIVE_AFTER[B, i+1] - DEF[i]) ∪ USE[i]
  *)
 module LiveVariables = struct
-  (* Instruction point: (block_id, instruction_index) *)
-  type instr_point = int * int
-  
-  module InstrPointMap = Map.Make (struct
-    type t = instr_point
-    let compare = compare
-  end)
-  
+  (* Instruction point types are now in MiniRISCUtils (opened at top of file) *)
+
   (* Analysis result: both block-level and instruction-level liveness *)
   type analysis_result = {
-    block_in : RegisterSet.t BlockMap.t;   (* Live at block entry *)
-    block_out : RegisterSet.t BlockMap.t;  (* Live at block exit *)
+    block_in : RegisterSet.t BlockMap.t; (* Live at block entry *)
+    block_out : RegisterSet.t BlockMap.t; (* Live at block exit *)
     instr_after : RegisterSet.t InstrPointMap.t; (* Live after each instruction *)
   }
 
@@ -353,17 +397,20 @@ module LiveVariables = struct
     let upward_exposed, killed =
       List.fold_left
         (fun (exposed, killed) cmd ->
+          (* Get registers used and defined in this command *)
           let uses = get_used_registers cmd in
           let defs = get_defined_registers cmd in
 
-          (* A use is upward exposed if it's used before being defined *)
+          (* Upward exposed if it's used before being defined *)
           let new_exposed =
             List.fold_left
               (fun acc u ->
+                (* Add to exposed if not already killed *)
                 if RegisterSet.mem u killed then acc else RegisterSet.add u acc
               )
               exposed uses
           in
+          (* Update killed set with newly defined registers *)
           let new_killed = List.fold_right RegisterSet.add defs killed in
           (new_exposed, new_killed)
         )
@@ -375,7 +422,9 @@ module LiveVariables = struct
     match block.terminator with
     | None -> (upward_exposed, killed)
     | Some term ->
+        (* Get registers used in the terminator *)
         let uses = get_used_registers term in
+        (* Add upward exposed uses from terminator *)
         let final_exposed =
           List.fold_left
             (fun acc u ->
@@ -397,72 +446,75 @@ module LiveVariables = struct
    *   - At each instruction i: live_after[i] = what's live after executing it
    *   - live_before[i] = (live_after[i] - def[i]) ∪ use[i]
    *   - Continue to previous instruction
-   *
-   * CRITICAL: We must also record liveness at block ENTRY (before first instruction)
-   * because registers used in the first instruction need to be in the live range!
-   *
-   * Note: We only need block_out_sets, not block_in_sets, because we compute
-   * the liveness at block entry naturally by walking backward from the exit.
    *)
   let compute_instruction_level_liveness cfg block_out_sets =
     BlockMap.fold
       (fun block_id block acc_map ->
-        (* Get all instructions in this block *)
+        (* Get all instructions in this block (commands + terminator) *)
         let all_instrs =
           match block.terminator with
           | None -> block.commands
-          | Some term -> block.commands @ [term]
+          | Some term -> block.commands @ [ term ]
         in
-        
+
         let num_instrs = List.length all_instrs in
-        
+
         (* Get OUT[block] - what's live when exiting this block *)
         let block_out =
           try BlockMap.find block_id block_out_sets
           with Not_found -> RegisterSet.empty
         in
-        
-        (* Walk backward through instructions *)
+
+        (* Walk backward through instructions from instruction index*)
         let rec backward_walk instr_idx current_live acc =
           if instr_idx < 0 then
             (* Reached beginning of block - record entry point *)
-            let entry_point = (block_id, -1) in  (* -1 means "before first instruction" *)
+            (* Track what's live BEFORE first instruction *)
+            let entry_point = (block_id, Entry) in
             InstrPointMap.add entry_point current_live acc
           else
             let instr = List.nth all_instrs instr_idx in
-            
+
             (* Record: what's live AFTER this instruction *)
-            let point = (block_id, instr_idx) in
+            let point = (block_id, AfterInstr instr_idx) in
             let updated_acc = InstrPointMap.add point current_live acc in
-            
-            (* Compute what's live BEFORE this instruction *)
+
             let defs = get_defined_registers instr in
             let uses = get_used_registers instr in
-            
+
+            (* Compute what's live BEFORE this instruction for the next 
+             * iteration. This will be what is currently live for the 
+             * previous instruction (backward) *)
             let live_before =
-              let after_kill = List.fold_right RegisterSet.remove defs current_live in
+              (* Remove defined registers from current live set *)
+              let after_kill =
+                List.fold_right RegisterSet.remove defs current_live
+              in
+              (* Build the live set without defined registers *)
               List.fold_right RegisterSet.add uses after_kill
             in
-            
+
             (* Continue to previous instruction *)
             backward_walk (instr_idx - 1) live_before updated_acc
         in
-        
+
         backward_walk (num_instrs - 1) block_out acc_map
       )
       cfg.blocks InstrPointMap.empty
 
   (* Main analysis: block-level first, then refine to instruction-level *)
   let analyze ?(verbose = false) (cfg : risc_cfg) : analysis_result =
-    log_verbose verbose "\n=== LIVE VARIABLES ANALYSIS (Block + Instruction Level) ===";
+    log_verbose verbose
+      "\n=== LIVE VARIABLES ANALYSIS (Block + Instruction Level) ===";
 
-    (* STEP 1: Block-level analysis (iterative fixpoint) *)
     log_verbose verbose "Step 1: Block-level liveness (fixpoint iteration)";
-    
-    (* Initialize: all blocks have empty IN *)
+
+    (* Initialize: all blocks have empty IN. Start from BOTTOM *)
     let init_in = BlockMap.map (fun _ -> RegisterSet.empty) cfg.blocks in
 
+    (* Block-level analysis *)
     let rec iterate iteration in_sets =
+      (* Compute IN and OUT sets for each block *)
       let new_in_sets, new_out_sets, changed =
         BlockMap.fold
           (fun id block (acc_in, acc_out, acc_changed) ->
@@ -470,8 +522,10 @@ module LiveVariables = struct
 
             (* OUT[B] = ∪ IN[S] for all successors S *)
             let out_value =
+              (* Output register is live at exit if the block is the exit block *)
               if id = cfg.exit then RegisterSet.singleton output_register
               else
+                (* Compute the union of IN sets of all successors *)
                 List.fold_left
                   (fun acc (succ_id, _) ->
                     let succ_in =
@@ -495,9 +549,11 @@ module LiveVariables = struct
 
             ( BlockMap.add id in_value acc_in,
               BlockMap.add id out_value acc_out,
-              acc_changed || has_changed )
+              acc_changed || has_changed
+            )
           )
-          cfg.blocks (BlockMap.empty, BlockMap.empty, false)
+          cfg.blocks
+          (BlockMap.empty, BlockMap.empty, false)
       in
 
       if changed then iterate (iteration + 1) new_in_sets
@@ -505,16 +561,23 @@ module LiveVariables = struct
     in
 
     let block_iterations, block_in_final, block_out_final = iterate 1 init_in in
-    log_verbose verbose "  Block-level fixpoint reached after %d iterations" block_iterations;
+    log_verbose verbose "  Block-level fixpoint reached after %d iterations"
+      block_iterations;
 
-    (* STEP 2: Instruction-level refinement (single backward pass per block) *)
-    log_verbose verbose "Step 2: Instruction-level liveness (backward refinement)";
-    let instr_liveness = compute_instruction_level_liveness cfg block_out_final in
-    
+    (* Instruction-level refinement (single backward pass per block) *)
+    log_verbose verbose
+      "Step 2: Instruction-level liveness (backward refinement)";
+    let instr_liveness =
+      compute_instruction_level_liveness cfg block_out_final
+    in
+
     let num_instr_points = InstrPointMap.cardinal instr_liveness in
-    log_verbose verbose "  Computed liveness for %d instruction points" num_instr_points;
+    log_verbose verbose "  Computed liveness for %d instruction points"
+      num_instr_points;
 
-    { block_in = block_in_final; 
-      block_out = block_out_final; 
-      instr_after = instr_liveness }
+    {
+      block_in = block_in_final;
+      block_out = block_out_final;
+      instr_after = instr_liveness;
+    }
 end

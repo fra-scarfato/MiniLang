@@ -1,3 +1,48 @@
+(* =============================================================================
+ * MINIIMP PARSER: Building Abstract Syntax Trees
+ * =============================================================================
+ *
+ * PURPOSE: Transform a stream of tokens into a structured AST.
+ *
+ * KEY DESIGN DECISIONS:
+ * ---------------------
+ * 1. **PROGRAM STRUCTURE**: Every MiniImp program MUST start with:
+ *      def main with input <var> output <var> as <body>
+ *    This is ENFORCED by the grammar, not just a convention.
+ *
+ * 2. **COMMAND SEQUENCING**: We use RIGHT-ASSOCIATIVE sequences:
+ *      c1; c2; c3  →  Seq(c1, Seq(c2, c3))
+ *    This creates a right-leaning tree. It's natural for recursive parsing.
+ *
+ * 3. **STATEMENT TERMINATORS**: Semicolons are REQUIRED after statements.
+ *    But we allow optional trailing semicolons (see command_list rules).
+ *    This is a usability compromise: strict syntax but forgiving formatting.
+ *
+ * 4. **PARENTHESES in COMMANDS**: We allow (c1; c2; c3) to group commands.
+ *    This is useful for disambiguation and clarity, even though semantically
+ *    it's just a Seq.
+ *
+ * 5. **EXPRESSION PRECEDENCE**: We use Menhir's %left declarations:
+ *      - Arithmetic: * > +,- (standard math rules)
+ *      - Boolean: NOT > AND (like ! and && in C)
+ *    This means "a + b * c" parses as "a + (b * c)" automatically!
+ *
+ * 6. **NEGATIVE NUMBERS**: We handle "-" specially in the 'int' rule:
+ *      int: INT | MINUS INT
+ *    This distinguishes unary minus (in numbers) from binary minus (in expressions).
+ *    It's a bit redundant with the lexer, but ensures correct precedence.
+ *
+ * AMBIGUITY RESOLUTION:
+ * ---------------------
+ * The grammar comments highlight critical disambiguation:
+ *   - "if b then c1 else c2; c3" → grouped as "(if..else); c3"
+ *   - "while b do c1; c2" → grouped as "(while...); c2"
+ *
+ * This is the DANGLING ELSE/SEMICOLON problem. We solve it by making
+ * IF and WHILE accept a SINGLE command, not a command_list.
+ * Sequences require explicit parentheses or nested structure.
+ *)
+
 %{
     open MiniImpSyntax
 %}

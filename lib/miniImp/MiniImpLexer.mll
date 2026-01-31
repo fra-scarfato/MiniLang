@@ -1,3 +1,33 @@
+(* =============================================================================
+ * MINIIMP LEXER: Breaking Text into Tokens
+ * =============================================================================
+ *
+ * PURPOSE: Transform source text into a stream of tokens for the parser.
+ *
+ * DESIGN CHOICES:
+ * ---------------
+ * 1. **WHITESPACE HANDLING**: We skip all whitespace (spaces, tabs, newlines)
+ *
+ * 2. **KEYWORD vs IDENTIFIER**: Keywords like "if", "while" are matched FIRST
+ *    If we matched identifiers first, "if" would be treated as a variable!
+ *    OCamllex matches patterns in ORDER, so we list keywords before variables.
+ *
+ * 3. **NEGATIVE NUMBERS**: We handle "-" in the integer pattern (integer = '-'? digit+)
+ *    This means "-5" is ONE token, not two (MINUS and INT(5)).
+ *    Alternative: Handle in parser (more flexible but more complex).
+ *
+ * 4. **NO COMMENTS**: MiniImp doesn't support comments.    
+ *
+ * 5. **MULTI-WORD KEYWORDS**: "def main with input" is a SINGLE token (DEF)
+ *    This is unusual! Most languages use separate keywords.
+ *    We do this to enforce a specific program structure syntactically.
+ *
+ * ERROR HANDLING:
+ * ---------------
+ * Any character not matching a pattern raises LexingError.
+ * This gives immediate feedback on invalid characters like "@" or "$".
+ *)
+
 {
     open MiniImpParser
     exception LexingError of string 

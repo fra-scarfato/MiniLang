@@ -1,3 +1,26 @@
+(* =============================================================================
+ * MINIRIS SYNTAX: The Target Language
+ * =============================================================================
+ *
+ * This module defines the abstract syntax for MiniRISC, our low-level
+ * register-based intermediate language. Think of it as a simplified
+ * assembly language.
+ *
+ * THE INSTRUCTION SET:
+ * --------------------
+ * - LoadI: Load immediate constant into register
+ * - BinRegOp: Binary operation with two register operands
+ * - BinImmOp: Binary operation with register and immediate
+ * - UnaryOp: Unary operation (not, copy)
+ * - Load/Store: Explicit memory access via register indirect addressing
+ * - Jump/CJump: Control flow (unconditional and conditional branches)
+ *
+ * EXAMPLE PROGRAM:
+ *   loadi 5 => r1        # Load constant 5 into r1
+ *   add r1 r_in => r2    # Add input to 5
+ *   copy r2 => r_out     # Copy result to output
+ *)
+
 module VarMap = Map.Make (String)
 
 (* Common Types for MiniRisc *)
