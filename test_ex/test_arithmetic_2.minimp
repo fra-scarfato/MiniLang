@@ -1,0 +1,5 @@
+// TEST: Parentheses and precedence
+// EXPECTED: Proper evaluation with nested parentheses
+
+def main with input x output y as
+  y = ((2 + 3) * (4 + 5)) - (6 * 7)

@@ -1,0 +1,17 @@
+// TEST: Complex nested conditionals and loops
+// EXPECTED: Should handle complex control flow correctly
+
+def main with input x output y as
+  sum = 0;
+  i = 0;
+  while i < x do (
+    if i < 5 then
+      sum = sum + i
+    else
+      if i < 10 then
+        sum = sum + (i * 2)
+      else
+        sum = sum + (i * 3);
+    i = i + 1
+  );
+  y = sum

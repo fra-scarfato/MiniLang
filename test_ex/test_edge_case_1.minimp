@@ -1,0 +1,7 @@
+// TEST: Empty loop body (skip)
+// EXPECTED: Should compile without errors
+
+def main with input x output y as
+  while x < 10 do
+    skip;
+  y = x

@@ -1,0 +1,14 @@
+// TEST: High register pressure - Many live variables
+// EXPECTED: With low register count (e.g., 4), should trigger spilling
+// Shows register allocation working with many variables
+
+def main with input x output y as
+  a = x + 1;
+  b = x + 2;
+  c = x + 3;
+  d = x + 4;
+  e = x + 5;
+  f = x + 6;
+  g = x + 7;
+  h = x + 8;
+  y = a + b + c + d + e + f + g + h

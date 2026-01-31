@@ -1,0 +1,8 @@
+// TEST: Multiple sequential assignments to same variable
+// EXPECTED: Only final assignment should matter for output
+
+def main with input x output y as
+  y = 1;
+  y = 2;
+  y = 3;
+  y = x + 4

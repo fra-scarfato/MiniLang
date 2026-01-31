@@ -53,10 +53,9 @@ let linearize_cfg ?(verbose = false) (cfg : risc_cfg) : risc_program =
   let prog = emit_blocks blocks_list in
 
   if verbose then (
+    log_verbose verbose "Generated %d instructions" (List.length prog);
     log_verbose verbose "\n--- Linear Code ---";
-    print_risc_program prog;
-    log_verbose verbose "Total instructions: %d" (List.length prog)
-  )
-  else Printf.printf "Code linearized (%d instructions)\n" (List.length prog);
+    print_risc_program prog
+  );
 
   prog

@@ -97,3 +97,202 @@ This avoided the **"Destination-Passing Trap"** (Strategy B), where passing a ta
 
 4. **Peephole Opt:** Cleans up `Load` + `Copy` sequences.
 5. **Result:** Optimized, Analysis-Ready RISC Code.
+
+---
+
+## 5. Register Allocation Architecture
+
+**Decision: n Total Physical Registers with 4 Reserved Slots**
+
+The target architecture provides `n` total physical registers. These are partitioned as follows:
+
+### Physical Register Allocation
+
+| Category | Count | Purpose | Can Spill? |
+|----------|-------|---------|------------|
+| `r_in` | 1 | Input register (I/O interface) | ❌ Never |
+| `r_out` | 1 | Output register (I/O interface) | ❌ Never |
+| `r_a, r_b` | 2 | Swap registers (for spilling operations) | ❌ Never |
+| `r0..r(n-5)` | n-4 | General-purpose (program variables) | ✅ Yes |
+
+**Key Insight:** The 4 reserved registers are **part of the n total**, not in addition to n. This means if the architecture has n=8 physical registers, only 4 are available for program variables. The rest must be spilled to memory.
+
+### Memory Address Representation
+
+**Decision: Use 0x1000 Base Address for Spilled Variables**
+
+When variables are spilled to memory, we use addresses starting at `0x1000` (4096 decimal).
+
+**Why 0x1000?**
+- **Visual Distinction:** Hex addresses (0x1000, 0x1001, ...) are immediately distinguishable from small integer constants (0, 1, 2, ...)
+- **Debugging:** Makes it obvious in the output when a variable is in memory vs. a register
+- **Convention:** Matches common practice where low addresses are special/reserved
+
+**Implementation:** The `LoadI` instruction formatter uses conditional hex display:
+```ocaml
+if n >= 0x1000 then Printf.sprintf "loadi 0x%x => %s" n r
+else Printf.sprintf "loadi %d => %s" n r
+```
+
+### Spilling Strategy
+
+**Decision: No Redundant Address Load Optimization**
+
+When a register is spilled, each load/store operation requires loading the memory address:
+
+```
+loadi 0x1000 => r_a    # Load address
+store r_b => r_a       # Store value
+loadi 0x1000 => r_a    # Load address again (redundant!)
+load r_a => r_a        # Load value
+```
+
+**Why Accept Redundancy?**
+
+| Approach | **A: Simple (Chosen)** | **B: Address Tracking** |
+|----------|------------------------|-------------------------|
+| **Strategy** | Rewrite each command independently | Thread state through rewrite to track r_a/r_b contents |
+| **Complexity** | Low - pure functional, easy to verify | High - stateful analysis, many edge cases |
+| **Performance** | Extra `loadi` instructions | Fewer instructions |
+| **Correctness** | Easy to prove correct | Must invalidate tracking when r_a is modified |
+| **Maintenance** | Simple to understand and debug | Complex bookkeeping |
+
+**Decision Rationale:** For a compiler project focused on correctness and learning, the simple approach is preferable. The extra `loadi` instructions are a minor overhead compared to the memory access itself.
+
+---
+
+## 6. Register Coalescing (Optimization)
+
+**Decision: Conservative I/O Register Handling**
+
+Register coalescing (merging) reduces the number of virtual registers by combining those with non-overlapping live ranges. However, we must be careful with special registers.
+
+### r_in and r_out Exclusion
+
+**Decision: Never Merge r_in or r_out**
+
+Both input and output registers are **excluded from the merging process entirely**.
+
+### Comparison of Approaches
+
+| Approach | **Description** | **Pros** | **Cons** | **Chosen?** |
+|----------|----------------|----------|----------|-------------|
+| **1. Allow Merging** | r_in and r_out can merge with any register | Maximizes optimization opportunities | Risk of merge/spill inconsistency; complex semantics | ❌ |
+| **2. Spill If Needed** | Treat as normal registers, allow spilling | Maximum register flexibility | Requires exit block fixup; added complexity | ❌ |
+| **3. Pin Representative** | If merged, keep representative in register | Allows merging while ensuring availability | Complex tracking; still reserves a slot | ❌ |
+| **4. Never Merge (Conservative)** | Exclude r_in and r_out from merging | Simple, clear semantics; no inconsistencies | Misses some optimization opportunities | ✅ |
+
+**Why Conservative?**
+1. **Clear Semantics:** Input/output always in designated registers
+2. **No Edge Cases:** Can't have merge/spill conflicts
+3. **Interface Stability:** External test harness always finds output in r_out
+4. **Simplicity:** Less code, easier to verify correctness
+
+**Trade-off Accepted:** We may miss opportunities to eliminate copy instructions like `copy x => r_out`, but this is a small cost for architectural clarity.
+
+---
+
+## 7. Code Quality: Pure Functional Style
+
+**Decision: Remove Mutable State from Allocation**
+
+The register allocation code was refactored from imperative (using `ref` cells) to pure functional style.
+
+### Before (Imperative):
+```ocaml
+let groups = ref RangeMap.empty in
+let renaming = ref RegisterMap.empty in
+List.iter (fun reg ->
+  groups := RangeMap.add reg ... !groups;
+  renaming := RegisterMap.add reg ... !renaming
+) all_regs
+```
+
+### After (Functional):
+```ocaml
+let groups, renaming, count =
+  List.fold_left (fun (groups, renaming, count) reg ->
+    let new_groups = RangeMap.add reg ... groups in
+    let new_renaming = RegisterMap.add reg ... renaming in
+    (new_groups, new_renaming, count + 1)
+  ) (RangeMap.empty, RegisterMap.empty, 0) all_regs
+```
+
+**Why Pure Functional?**
+1. **Easier Reasoning:** No hidden state mutations
+2. **Better Testability:** Each function call is independent
+3. **No Side Effects:** Can't accidentally corrupt shared state
+4. **OCaml Idiomatic:** Matches functional programming best practices
+
+---
+
+## 8. Dead Code Elimination
+
+**Decision: Removed from Pipeline**
+
+Dead code elimination (DCE) was present in an earlier version but has been removed.
+
+**Why Remove DCE?**
+1. **Correctness Concerns:** DCE interacts poorly with dataflow analysis
+2. **Minimal Benefit:** Algebraic simplification already removes most dead computations
+3. **Complexity:** Required maintaining additional analysis state
+4. **Pure Functional Conflict:** DCE required mutation, conflicting with goal #7
+
+**Current Strategy:** Let earlier optimizations (algebraic simplification, peephole) handle obvious cases. Accept that some truly dead code may remain - it's better to be correct than aggressive.
+
+---
+
+## 9. Logging and Debugging
+
+**Decision: Standardized Verbose Logging Across All Modules**
+
+All compiler modules now use a consistent logging approach:
+
+### Logging Principles
+1. **Controlled by `verbose` flag:** No output unless explicitly requested
+2. **Consistent utility function:** All modules use `log_verbose verbose fmt`
+3. **Hierarchical information:**
+   - **Always (if verbose):** Phase headers, summary statistics
+   - **Never:** Per-iteration dataflow details, redundant progress messages
+4. **Concise format:** Short, readable messages (not multi-line ASCII art)
+
+### What Changed
+- **Before:** Mix of `Printf.printf`, `print_endline`, conditional printing
+- **After:** Single `log_verbose` utility, consistent formatting
+- **Removed:** Iteration-by-iteration dataflow dumps (too verbose)
+- **Kept:** Phase summaries, fixpoint iteration counts, register/memory allocation maps
+
+### Example Output (verbose mode):
+```
+=== STEP 1: REGISTER MERGING (COALESCING) ===
+  r2 -> r1
+  r5 -> r3
+Total registers merged: 2
+Note: r_in and r_out are never merged (always kept as special registers)
+
+=== STEP 2: ALLOCATION & SPILLING ===
+Available slots: 4 registers (n=8 - 4 reserved)
+  [Reg] r1 (freq=15)
+  [Reg] r3 (freq=12)
+  [Mem@0x1000] r4 (freq=5)
+Summary: 2 in registers, 1 spilled
+
+=== MEMORY MAP ===
+  r4 -> 0x1000
+```
+
+**Benefit:** Developers can quickly understand what the compiler is doing without drowning in excessive detail.
+
+---
+
+## Summary of Design Philosophy
+
+Throughout this compiler implementation, we consistently chose:
+
+1. **Correctness over Performance:** Simple, verifiable algorithms over complex optimizations
+2. **Pure Functional over Imperative:** Eliminated mutable state where possible
+3. **Conservative over Aggressive:** Clear semantics (e.g., never merge I/O registers) over maximum optimization
+4. **Explicit over Implicit:** Visible intermediate representations (CFG, allocation maps) for debugging
+5. **Consistent over Ad-Hoc:** Standardized patterns (logging, error handling) across all modules
+
+These choices reflect the priorities of an educational compiler project: **understanding and correctness first, performance second**.

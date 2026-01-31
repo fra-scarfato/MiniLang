@@ -1,5 +1,61 @@
 open MiniImpSyntax
 
+(* =============================================================================
+ * CONTROL FLOW GRAPH (CFG) CONSTRUCTION
+ * =============================================================================
+ *
+ * This module builds a Control Flow Graph from a MiniImp abstract syntax tree.
+ * The CFG is the foundation for all further analysis and optimization.
+ *
+ * WHAT IS A CFG?
+ * --------------
+ * A CFG represents program structure as a graph where:
+ *   - NODES (blocks): Sequences of straight-line code (no branches)
+ *   - EDGES: Possible control flow between blocks (jumps, branches)
+ *
+ * Example program:
+ *   if (x > 0) { y = 1 } else { y = 2 }
+ *   z = y + 1
+ *
+ * CFG structure:
+ *   Block 0 (entry): [skip]
+ *   Block 1: [if test]  --True--> Block 2
+ *                       --False--> Block 3
+ *   Block 2: [y = 1] -------> Block 4
+ *   Block 3: [y = 2] -------> Block 4
+ *   Block 4: [z = y + 1] --> Block 5 (exit)
+ *
+ * THE CONSTRUCTION STRATEGY: "FLATTEN AND ACCUMULATE"
+ * ----------------------------------------------------
+ * We rejected a naive approach (create one block per statement, then merge)
+ * in favor of a smarter strategy:
+ *
+ * 1. FLATTEN: Convert nested Seq(Seq(Seq(...))) into a flat list of statements
+ * 2. ACCUMULATE: Build maximal basic blocks by accumulating straight-line code
+ * 3. SPLIT: Only create a new block when we hit a branch point
+ *
+ * WHY THIS WAY?
+ * -------------
+ * - EFFICIENT: Creates exactly the blocks we need, no wasteful create-then-merge
+ * - SAFE: No label aliasing bugs (we never destroy blocks that might be targets)
+ * - CLEAN: Output is immediately optimal (maximal basic blocks)
+ *
+ * WHAT IS A "MAXIMAL BASIC BLOCK"?
+ * ---------------------------------
+ * A basic block is "maximal" if we can't extend it without violating the rule:
+ * "no branches in the middle, at most one branch at the end".
+ *
+ * Example of NON-maximal (wasteful):
+ *   Block 1: x = 1
+ *   Block 2: y = 2
+ *   Block 3: z = 3
+ *
+ * Example of MAXIMAL (optimal):
+ *   Block 1: x = 1; y = 2; z = 3
+ *
+ * Our algorithm produces maximal blocks from the start.
+ *)
+
 (* ========== CFG Data Structures ========== *)
 
 type block_id = int
@@ -60,7 +116,42 @@ let print_cfg cfg =
     )
     cfg.blocks;
   Printf.printf "-----------\n"
-
+(* =============================================================================
+ * CFG BUILDER: Functional Construction with Immutable Updates
+ * =============================================================================
+ *
+ * The builder maintains the state of the CFG during construction. Unlike
+ * typical imperative graph builders (using mutable refs), we use a pure
+ * functional approach: each operation returns a NEW builder.
+ *
+ * WHY FUNCTIONAL?
+ * ---------------
+ * - SAFETY: Can't accidentally mutate shared state
+ * - TESTABILITY: Each step is an independent, inspectable function call
+ * - OCAML IDIOMATIC: Matches the functional programming style
+ *
+ * THE BUILDER STATE:
+ * ------------------
+ * - next_id: Counter for generating fresh block IDs
+ * - blocks: Map from block_id to block (with statements)
+ * - edges: Map from block_id to list of (successor_id, label)
+ *
+ * KEY OPERATIONS:
+ * ---------------
+ * - create_block: Allocate a fresh ID, add empty block
+ * - append_stmt: Add a statement to the END of an existing block
+ * - add_edge: Record that block A can flow to block B
+ *
+ * CRITICAL DESIGN CHOICE: Appending to Lists
+ * -------------------------------------------
+ * We use block.stmts @ [stmt] which is O(n) for each append. This might
+ * seem inefficient, but:
+ *   1. Basic blocks are typically SHORT (< 10 statements)
+ *   2. We only append during construction, not during analysis
+ *   3. The alternative (reverse accumulation) makes the code harder to read
+ *
+ * For an educational compiler, clarity trumps micro-optimization.
+ *)
 (* ========== Builder with Block Mutation Support ========== *)
 
 type builder = {
@@ -224,11 +315,8 @@ let generate_cfg ?(verbose = false) (Prog (_, _, body)) =
   in
 
   if verbose then (
-    print_cfg cfg;
-    log_verbose verbose "MiniImp CFG: %d blocks" (BlockMap.cardinal cfg.blocks)
-  )
-  else
-    Printf.printf "MiniImp CFG generated (%d blocks)\n"
-      (BlockMap.cardinal cfg.blocks);
+    log_verbose verbose "Generated %d blocks" (BlockMap.cardinal cfg.blocks);
+    print_cfg cfg
+  );
 
   cfg

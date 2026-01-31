@@ -1,2 +1,12 @@
-def main with input x output y as
-  y = (1 + 2) * 3
+def main with input n output res as
+    x = n * 10;
+    if n < 20 then
+        res = x
+    else 
+        res = 0;
+        
+    y = n + 5;
+    if n < 50 then
+        res = y
+    else
+        res = 1

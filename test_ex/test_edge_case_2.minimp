@@ -1,0 +1,7 @@
+// TEST: Negative numbers
+// EXPECTED: Should handle negative literals correctly
+
+def main with input x output y as
+  a = -10;
+  b = -5;
+  y = a + b + x

@@ -1,0 +1,5 @@
+// TEST: Input directly to output
+// EXPECTED: Minimal register usage, should coalesce input/output
+
+def main with input x output y as
+  y = x

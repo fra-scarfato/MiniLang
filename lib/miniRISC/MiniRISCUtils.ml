@@ -87,7 +87,12 @@ let string_of_command = function
   | Load (r1, r2) ->
       Printf.sprintf "load %s => %s" (string_of_register r1)
         (string_of_register r2)
-  | LoadI (n, r) -> Printf.sprintf "loadi %d => %s" n (string_of_register r)
+  | LoadI (n, r) -> 
+      (* Format large numbers (>= 0x1000) as hex for readability *)
+      if n >= 0x1000 then
+        Printf.sprintf "loadi 0x%x => %s" n (string_of_register r)
+      else
+        Printf.sprintf "loadi %d => %s" n (string_of_register r)
   | Store (r1, r2) ->
       Printf.sprintf "store %s => %s" (string_of_register r1)
         (string_of_register r2)

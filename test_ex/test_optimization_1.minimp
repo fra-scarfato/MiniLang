@@ -1,0 +1,8 @@
+// TEST: Copy propagation opportunities
+// EXPECTED: Register coalescing should merge copies
+
+def main with input x output y as
+  a = x;
+  b = a;
+  c = b;
+  y = c

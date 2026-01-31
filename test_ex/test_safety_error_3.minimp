@@ -1,0 +1,10 @@
+// TEST: Safety Error - Loop without initialization
+// EXPECTED WITH -s FLAG: Safety check might fail
+// Variable 'sum' used in loop before initialization
+
+def main with input x output y as
+  while x < 10 do (
+    sum = sum + 1;
+    x = x + 1
+  );
+  y = sum

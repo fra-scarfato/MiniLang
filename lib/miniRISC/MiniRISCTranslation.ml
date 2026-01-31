@@ -2,6 +2,46 @@ open MiniImpSyntax
 open MiniRISCSyntax
 open MiniRISCUtils
 
+(* =============================================================================
+ * MINIIMP TO MINIRICS TRANSLATION: From High-Level to Low-Level
+ * =============================================================================
+ *
+ * This module is the "compiler" phase that translates from MiniImp (with
+ * variables, expressions, control flow) down to MiniRISC (pure register
+ * operations, no variables, explicit jumps).
+ *
+ * THE TRANSLATION STRATEGY:
+ * -------------------------
+ * We use a "compute and copy" approach:
+ *   1. Expressions compute results into FRESH temporary registers
+ *   2. Assignments copy those results into the target variable's register
+ *
+ * This creates extra copy instructions, but it's simple and avoids a nasty
+ * bug we encountered: if we tried to compute directly into the destination,
+ * loops would break (the loop header reads the old value, but the body
+ * overwrites it before the branch back).
+ *
+ * OPTIMIZATION: We do constant folding and algebraic simplification during
+ * translation. Why? Because it's easier to optimize "x * 0" while we can
+ * still see it's a multiplication, rather than after we've generated:
+ *   loadi 0 => r1
+ *   mult r2 r1 => r3
+ * and trying to recognize that pattern.
+ *
+ * THE VARIABLE MAPPING:
+ * ---------------------
+ * We maintain a map: variable_name -> register_name
+ *   "x" -> r5
+ *   "counter" -> r12
+ *
+ * Special cases:
+ *   - Input variable always maps to r_in
+ *   - Output variable always maps to r_out
+ *
+ * This ensures the calling convention is stable: the test harness knows
+ * where to put inputs and read outputs.
+ *)
+
 (* ========== Variable to Register Mapping ========== *)
 
 module VarMap = Map.Make (String)
@@ -289,13 +329,10 @@ let translate_cfg ?(verbose = false) input_var output_var
   in
 
   if verbose then (
-    MiniRISCCFG.print_risc_cfg cfg;
-    log_verbose verbose "MiniRISC CFG: %d blocks, ~%d register operations"
+    log_verbose verbose "Generated %d blocks, %d operations"
       (MiniRISCCFG.BlockMap.cardinal cfg.blocks)
-      num_regs
-  )
-  else
-    Printf.printf "MiniRISC CFG translated (%d blocks)\n"
-      (MiniRISCCFG.BlockMap.cardinal cfg.blocks);
+      num_regs;
+    MiniRISCCFG.print_risc_cfg cfg
+  );
 
   cfg

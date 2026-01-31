@@ -1,0 +1,8 @@
+// TEST: Boolean expressions with NOT
+// EXPECTED: Correct NOT precedence over AND
+
+def main with input x output y as
+  if not x < 0 and x < 100 then
+    y = 1
+  else
+    y = 0

@@ -1,0 +1,5 @@
+// TEST: Arithmetic expression evaluation
+// EXPECTED: Correct operator precedence (*, +, -)
+
+def main with input x output y as
+  y = 2 + 3 * 4 - 5
