@@ -58,9 +58,6 @@ open MiniRISCCFG
  *   - Use execution frequency (hot blocks first)
  *   - Maximize fall-through opportunities
  *   - Respect loop structure (keep loop bodies together)
- *
- * For an educational compiler, simple is good enough. Production compilers
- * spend significant effort on code layout optimization.
  *)
 
 (* ========== Linearization ========== *)

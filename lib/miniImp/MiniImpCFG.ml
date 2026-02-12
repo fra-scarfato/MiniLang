@@ -196,7 +196,6 @@ let create_block builder =
  *)
 let append_stmt builder block_id stmt =
   let block = BlockMap.find block_id builder.blocks in
-  (* We append to the end. Since lists are prepended, we will rev later *)
   let new_block = { block with stmts = block.stmts @ [ stmt ] } in
   { builder with blocks = BlockMap.add block_id new_block builder.blocks }
 
@@ -382,14 +381,8 @@ let rec gen_stmts builder current_block_id cmds =
           gen_stmts builder join_id rest
       (* LOOPS: Close current, Jump to Header, Recurse *)
       | While (cond, body) ->
-          (* Create Loop Header *)
-          let builder, header_id = create_block builder in
-          let builder =
-            add_edge builder current_block_id header_id Unconditional
-          in
-
-          (* Put 'While' condition in the Header *)
-          let builder = append_stmt builder header_id (While (cond, Skip)) in
+          (* Put the 'While' condition in the current block *)
+          let builder = append_stmt builder current_block_id (While (cond, Skip)) in
 
           (* Create Loop Exit block with Skip *)
           let builder, exit_id = create_block builder in
@@ -402,11 +395,11 @@ let rec gen_stmts builder current_block_id cmds =
           in
 
           (* Wire edges *)
-          let builder = add_edge builder header_id body_entry True in
+          let builder = add_edge builder current_block_id body_entry True in
           (* Loop matches *)
-          let builder = add_edge builder header_id exit_id False in
+          let builder = add_edge builder current_block_id exit_id False in
           (* Loop finishes *)
-          let builder = add_edge builder body_end header_id Unconditional in
+          let builder = add_edge builder body_end current_block_id Unconditional in
           (* Back edge *)
 
           (* Continue in Exit block *)

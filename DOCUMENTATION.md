@@ -1,6 +1,9 @@
-# MiniImp to MiniRISC Compiler - Complete Documentation
+# Languages and Compilers - Complete Documentation
 
-A comprehensive compiler from MiniImp (a simple imperative language) to MiniRISC (a RISC-like assembly language), with register allocation, optimization, and safety analysis.
+A comprehensive suite of language implementations including:
+- **MiniImp**: Imperative language with compiler to RISC assembly
+- **MiniFun**: Functional language with closures and recursion
+- **MiniTyFun**: Statically-typed functional language with type checker
 
 ---
 
@@ -8,6 +11,10 @@ A comprehensive compiler from MiniImp (a simple imperative language) to MiniRISC
 
 1. [Overview](#overview)
 2. [Language Design](#language-design)
+   - [MiniImp: Imperative Language](#miniimp-the-source-language)
+   - [MiniRISC: Assembly Target](#miniRISC-the-target-language)
+   - [MiniFun: Functional Language](#minifun-functional-programming)
+   - [MiniTyFun: Typed Functional Language](#minityfun-static-type-checking)
 3. [Architecture](#architecture)
 4. [Compilation Pipeline](#compilation-pipeline)
 5. [Control Flow Graph Construction](#control-flow-graph-construction)
@@ -22,16 +29,41 @@ A comprehensive compiler from MiniImp (a simple imperative language) to MiniRISC
 
 ## Overview
 
-This compiler translates programs from **MiniImp** (a minimal imperative language with variables, conditionals, and loops) to **MiniRISC** (a register-based assembly language), performing optimizations and register allocation along the way.
+This project contains implementations of multiple programming languages demonstrating different paradigms and implementation techniques:
 
-### Key Features
+### MiniImp to MiniRISC Compiler
 
+A compiler that translates programs from **MiniImp** (a minimal imperative language with variables, conditionals, and loops) to **MiniRISC** (a register-based assembly language), performing optimizations and register allocation along the way.
+
+**Key Features:**
 - **Register Allocation**: Maps unlimited virtual registers to a fixed number of physical registers (minimum 4)
 - **Register Coalescing**: Merges non-interfering registers to reduce pressure
 - **Instruction-Level Liveness**: Fine-grained analysis for precise optimization
 - **Safety Checking**: Detects uninitialized variable usage
 - **Optimization**: Algebraic simplification, peephole optimization, dead store elimination
 - **Pure Functional**: No mutable state, clean functional style throughout
+
+### MiniFun: Functional Language
+
+An interpreter for a functional programming language with first-class functions, closures, and lexical scoping.
+
+**Key Features:**
+- **First-Class Functions**: Functions as values, higher-order functions
+- **Closures**: Functions capture their environment (lexical scoping)
+- **Recursion**: Support for recursive functions via special binding
+- **Environment-Based Evaluation**: Efficient interpretation strategy
+- **Dynamic Typing**: Type errors caught at runtime
+
+### MiniTyFun: Statically-Typed Functional Language
+
+A type checker and interpreter for a statically-typed variant of MiniFun.
+
+**Key Features:**
+- **Static Type Checking**: Type errors caught before execution
+- **Type Safety**: Well-typed programs guaranteed not to have type errors
+- **Explicit Type Annotations**: Function parameters and recursive functions require types
+- **Simple Type System**: Int, Bool, and function types (Closure)
+- **Type Inference for Let**: Local bindings infer types from expressions
 
 ---
 
@@ -111,33 +143,318 @@ Each instruction represents a single, atomic operation that:
 2. Has clear data dependencies (easy to analyze)
 3. Maps naturally to real CPU instructions
 
+### MiniFun: Functional Programming
+
+**Design Philosophy: LAMBDA CALCULUS IN PRACTICE**
+
+MiniFun demonstrates the core concepts of functional programming and lambda calculus in a practical, executable form.
+
+**Core Concepts:**
+
+MiniFun is built around three fundamental ideas from lambda calculus:
+
+1. **First-Class Functions**: Functions are values
+   - Can be passed as arguments: `apply (fun x -> x + 1) 5`
+   - Can be returned from functions: `fun x -> fun y -> x + y`
+   - Can be stored in variables: `let square = fun x -> x * x in ...`
+
+2. **Closures and Lexical Scoping**: Functions capture their environment
+   - A function remembers where it was defined, not where it's called
+   - Example: `let x = 10 in fun y -> x + y` (the function remembers x=10)
+
+3. **Recursion**: Functions can call themselves
+   - Special binding form for recursive functions
+   - Example: `letfun factorial n = if n < 2 then 1 else n * factorial (n-1)`
+
+**Language Features:**
+
+```
+# Literals
+42                     # Integer literal
+true, false            # Boolean literals
+
+# Variables and Bindings
+let x = 5 in x * x     # Local variable binding
+
+# Anonymous Functions (Lambda Expressions)
+fun x -> x + 1         # Function that increments its argument
+fun x -> fun y -> x + y  # Curried two-argument function
+
+# Function Application
+f 3                    # Apply function f to argument 3
+(fun x -> x * 2) 5     # Apply anonymous function to 5 => 10
+
+# Recursive Functions
+letfun factorial n =   # Named recursive function
+  if n < 2 then 1
+  else n * factorial (n - 1)
+in factorial 5
+
+# Operators
+x + y, x - y, x * y    # Arithmetic
+x < y                  # Comparison
+a and b, not c         # Boolean logic
+
+# Conditionals
+if x < 0 then -x else x  # Absolute value
+```
+
+**Why Currying (One Argument Per Function)?**
+
+MiniFun functions take exactly one argument. Multi-argument functions are expressed as nested functions:
+
+```
+# Two-argument addition
+fun x -> fun y -> x + y
+
+# Application is left-associative
+let add = fun x -> fun y -> x + y in
+add 3 5                  # ((add 3) 5) => 8
+```
+
+This simplifies the type system and evaluation model while maintaining full expressiveness.
+
+**Evaluation Strategy: Environment-Based**
+
+Instead of substituting values into syntax trees (beta-reduction from lambda calculus), MiniFun uses environments - mappings from variable names to values. This is:
+- More efficient (no copying of terms)
+- More realistic (how real interpreters work)
+- Naturally handles closures (capture environment at function creation)
+
+**Example Programs:**
+
+```
+# Identity function
+fun x -> x
+
+# Composition
+let compose = fun f -> fun g -> fun x -> f (g x) in
+let inc = fun x -> x + 1 in
+let double = fun x -> x * 2 in
+compose double inc 5     # double(inc(5)) = 12
+
+# Factorial
+letfun factorial n =
+  if n < 2 then 1
+  else n * factorial (n - 1)
+in factorial 5            # 120
+
+# Closure example
+let makeAdder = fun x -> fun y -> x + y in
+let add10 = makeAdder 10 in
+add10 5                   # 15 (the function remembers x=10)
+```
+
+**What MiniFun DOESN'T Have:**
+
+- **Static Types**: Type errors caught at runtime (see MiniTyFun for typed version)
+- **Side Effects**: No mutation, I/O, or state (pure functional)
+- **Pattern Matching**: No case expressions or destructuring
+- **Polymorphism**: No generic functions or type variables
+- **Lists/Data Structures**: Only integers and booleans
+
+These omissions keep the implementation simple while preserving the essential character of functional programming.
+
+### MiniTyFun: Static Type Checking
+
+**Design Philosophy: TYPE SAFETY VIA STATIC ANALYSIS**
+
+MiniTyFun extends MiniFun with a static type system. Programs are type-checked BEFORE execution, catching type errors early.
+
+**The Key Difference:**
+
+```
+# MiniFun (dynamic typing)
+let x = 3 + true in ...   # ERROR at runtime when trying to add
+
+# MiniTyFun (static typing)
+let x = 3 + true in ...   # ERROR before execution (type checker rejects it)
+```
+
+**Type System:**
+
+MiniTyFun has three types:
+
+1. **Int**: Type of integer values (3, -5, 42)
+2. **Bool**: Type of boolean values (true, false)
+3. **Closure(τ₁, τ₂)**: Type of functions from τ₁ to τ₂
+   - `Closure(Int, Int)`: Integer → Integer
+   - `Closure(Int, Closure(Int, Int))`: Curried two-argument function
+
+**Syntax Changes for Types:**
+
+Functions must declare parameter types:
+
+```
+# MiniFun (no types)
+fun x -> x + 1
+
+# MiniTyFun (parameter typed)
+fun (x : Int) -> x + 1
+```
+
+Recursive functions must declare their full type:
+
+```
+# MiniFun
+letfun factorial n = ...
+
+# MiniTyFun
+letfun factorial (n : Int -> Int) =
+  if n < 2 then 1
+  else n * factorial (n - 1)
+in ...
+```
+
+**Type Checking Rules:**
+
+The type checker enforces:
+
+1. **Literals have natural types**: `5 : Int`, `true : Bool`
+2. **Operations require compatible types**: 
+   - `+, -, *` require `Int × Int`, produce `Int`
+   - `<` requires `Int × Int`, produces `Bool`
+   - `and` requires `Bool × Bool`, produces `Bool`
+3. **Conditionals require same-type branches**:
+   - `if c then t else e` requires `c : Bool` and `t, e : τ` (same type)
+4. **Function application requires type match**:
+   - If `f : Closure(τ₁, τ₂)` and `arg : τ₁`, then `f arg : τ₂`
+
+**Type Safety Guarantee:**
+
+**THEOREM**: If a MiniTyFun program type-checks, it will never have a runtime type error.
+
+More precisely: Well-typed programs can only:
+- Evaluate successfully to a value of the correct type
+- Diverge (infinite loop)
+- Fail with non-type errors (e.g., unbound variable)
+
+They CANNOT:
+- Try to add an integer to a boolean
+- Call a non-function value
+- Pass an argument of the wrong type
+
+**Example Type Checking:**
+
+```
+# Type checks successfully
+fun (x : Int) -> x + 1
+Type: Closure(Int, Int)
+
+# Type error: can't add Int and Bool
+fun (x : Int) -> x + true
+ERROR: Invalid operation for the operands
+
+# Type checks: conditional branches have same type
+fun (x : Int) -> if x < 0 then -x else x
+Type: Closure(Int, Int)
+
+# Type error: branches have different types
+fun (x : Int) -> if x < 0 then -x else true
+ERROR: Branches of the if must return the same type
+```
+
+**Why Explicit Type Annotations?**
+
+Type inference (figuring out types automatically) is possible but complex. MiniTyFun requires explicit annotations on:
+- Function parameters: `fun (x : Int) -> ...`
+- Recursive function types: `letfun f (x : Int -> Int) = ...`
+
+This makes the type checker simpler and the code more self-documenting. Let bindings still infer types from their expressions.
+
+**Trade-offs: Dynamic vs Static Typing:**
+
+MiniFun (Dynamic):
+- ✓ Simpler syntax (no type annotations)
+- ✓ More flexible (duck typing)
+- ✗ Errors found at runtime
+- ✗ Less safe
+
+MiniTyFun (Static):
+- ✓ Errors found before execution
+- ✓ Type safety guarantee
+- ✓ Self-documenting code
+- ✗ Requires type annotations
+- ✗ Less flexible
+
 ---
 
 ## Architecture
 
 ### Module Organization
 
-#### Source Language Modules
+#### MiniImp/MiniRISC Compiler Modules
+
+**Source Language Modules:**
 - **MiniImpSyntax**: AST definitions for MiniImp (expressions, commands, programs)
 - **MiniImpParser**: LR(1) parser built with Menhir (handles precedence, associativity)
 - **MiniImpLexer**: Lexical analyzer built with OCamllex (tokenizes source code)
 - **MiniImpEval**: Reference interpreter (defines ground-truth semantics)
 - **MiniImpCFG**: Control Flow Graph construction from AST
 
-#### Target Language Modules
+**Target Language Modules:**
 - **MiniRISCSyntax**: AST definitions for MiniRISC instructions
 - **MiniRISCUtils**: Utilities (register operations, string conversions, set operations)
 - **MiniRISCCFG**: Control Flow Graph representation for RISC code
 - **MiniRISCLinearize**: Converts CFG back to sequential instruction list
 
-#### Translation & Optimization Modules
+**Translation & Optimization Modules:**
 - **MiniRISCTranslation**: MiniImp AST → MiniRISC CFG (with unlimited virtual registers)
 - **MiniRISCDataflow**: Liveness and definite variables analysis
 - **MiniRISCAllocation**: Register allocation, coalescing, and spilling
 - **MiniRISCOptimization**: Peephole optimizations (unused in current pipeline)
 
-#### Main Compiler
+**Main Compiler:**
 - **MiniImpCompiler**: Command-line interface, orchestrates entire pipeline
+
+#### MiniFun Interpreter Modules
+
+**Core Modules:**
+- **MiniFunSyntax**: AST definitions (terms, values, closures, environments)
+- **MiniFunParser**: LR(1) parser with precedence declarations for operators
+- **MiniFunLexer**: Lexical analyzer for functional syntax (fun, ->, let, letfun)
+- **MiniFunEval**: Environment-based interpreter with closure evaluation
+
+**Design Highlights:**
+
+1. **Environment-Based Evaluation**: 
+   - Environments map variables to runtime values
+   - Closures capture environments at function creation
+   - More efficient than substitution-based evaluation
+
+2. **Closure Representation**:
+   - `ClosureNoRec`: Regular functions (parameter, body, environment)
+   - `ClosureRec`: Recursive functions (function name, parameter, body, environment)
+   - Allows recursion by binding function to itself in its own environment
+
+3. **Parser Strategy**:
+   - Three-level grammar: expr (operators), fun_app (applications), atomic (literals)
+   - Precedence declarations resolve shift/reduce conflicts
+   - Function application has highest precedence, is left-associative
+
+#### MiniTyFun Type Checker Modules
+
+**Core Modules:**
+- **MiniTyFunSyntax**: AST with type annotations (Fun has typed parameters, LetFun has typed recursion)
+- **MiniTyFunTypeCheck**: Static type checker with type environment
+
+**Design Highlights:**
+
+1. **Type Environment vs Value Environment**:
+   - Type checker: environment maps variables to TYPES
+   - Interpreter: environment maps variables to VALUES
+   - Type checking happens at compile-time, evaluation at runtime
+
+2. **Explicit Type Annotations**:
+   - Functions require parameter types: `fun (x : Int) -> body`
+   - Recursive functions require full type: `letfun f (x : Int -> Int) = ...`
+   - Let bindings infer types from expressions
+
+3. **Type Safety Implementation**:
+   - Each expression has a type checking rule
+   - Operations check operand types match expected types
+   - Conditional branches must have same type
+   - Function application checks argument type matches parameter type
 
 ---
 

@@ -71,7 +71,7 @@ rule read = parse
     | "def main with input" { DEF }
     | "output"   { OUTPUT }
     | "as"       { AS }
-    | "="        { EQUAL }
+    | ":="       { EQUAL }
     | "("        { LPAREN }
     | ")"        { RPAREN }
     | ";"        { SEMICOLON }

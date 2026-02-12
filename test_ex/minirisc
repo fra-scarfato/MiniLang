@@ -1,0 +1,40 @@
+main:
+  nop
+  loadi 0 => r0
+  copy r0 => r_out
+  loadi 0 => r1
+  less r_in r1 => r_b
+  loadi 0x1000 => r_a
+  store r_b => r_a
+  loadi 0x1000 => r_a
+  load r_a => r_a
+  not r_a => r_b
+  loadi 0x1001 => r_a
+  store r_b => r_a
+  loadi 0x1001 => r_a
+  load r_a => r_a
+  cjump r_a L2 L1
+L1:
+  nop
+  jump L3
+L2:
+  add r_out r_in => r_b
+  loadi 0x1002 => r_a
+  store r_b => r_a
+  loadi 0x1002 => r_a
+  load r_a => r_a
+  copy r_a => r_out
+  loadi 1 => r_b
+  loadi 0x1003 => r_a
+  store r_b => r_a
+  loadi 0x1003 => r_b
+  load r_b => r_b
+  sub r_in r_b => r_b
+  loadi 0x1004 => r_a
+  store r_b => r_a
+  loadi 0x1004 => r_a
+  load r_a => r_a
+  copy r_a => r_in
+  jump L0
+L3:
+  nop

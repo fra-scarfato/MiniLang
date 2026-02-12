@@ -142,7 +142,7 @@ module DefiniteVariables = struct
                   (* Entry block starts with input_register defined *)
                   if id = cfg.entry then RegisterSet.singleton input_register
                   (* Unreachable block (no predecessors) starts with TOP *)
-                    else all_regs
+                  else all_regs
               | p :: ps ->
                   (* One or more predecessors *)
                   (* Get the OUT set of the predecessor *)
@@ -180,7 +180,7 @@ module DefiniteVariables = struct
       (* If any changes occurred, continue iterating *)
       if changed then iterate (iteration + 1) new_out_state
       (* Else, fixpoint reached *)
-        else (iteration, new_out_state, new_in_state)
+      else (iteration, new_out_state, new_in_state)
     in
 
     (* Start the iteration process with the initial state *)
@@ -383,8 +383,6 @@ end
  * Instruction Update: LIVE_AFTER[B, i] = (LIVE_AFTER[B, i+1] - DEF[i]) ∪ USE[i]
  *)
 module LiveVariables = struct
-  (* Instruction point types are now in MiniRISCUtils (opened at top of file) *)
-
   (* Analysis result: both block-level and instruction-level liveness *)
   type analysis_result = {
     block_in : RegisterSet.t BlockMap.t; (* Live at block entry *)

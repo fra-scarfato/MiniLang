@@ -1,3 +1,53 @@
+(* =============================================================================
+ * MINIFUN PARSER: BUILDING ABSTRACT SYNTAX TREES FROM TOKEN STREAMS
+ * =============================================================================
+ *
+ * The parser is the second phase of compilation, after lexing. It reads a
+ * sequence of tokens and builds an Abstract Syntax Tree (AST) that represents
+ * the program's structure.
+ *
+ * OUR PRECEDENCE HIERARCHY (LOWEST TO HIGHEST):
+ * ----------------------------------------------
+ * 1. IN, ELSE, ARROW (lowest) - let/if/fun bodies extend as far right as possible
+ * 2. AND, NOT - boolean operators
+ * 3. LESS - comparison
+ * 4. PLUS, MINUS - addition/subtraction
+ * 5. TIMES (highest) - multiplication
+ * 6. Function application (implicit, highest of all)
+ *
+ * EXAMPLE PARSINGS:
+ * -----------------
+ * "let x = 1 in x + 2"    => let x = 1 in (x + 2)     [IN low precedence]
+ * "if c then t else e + 1" => if c then t else (e + 1) [ELSE low precedence]
+ * "fun x -> x + 1"        => fun x -> (x + 1)          [ARROW low precedence]
+ * "a + b * c"             => a + (b * c)               [TIMES > PLUS]
+ * "a - b + c"             => (a - b) + c               [left assoc]
+ * "f g + h"               => (f g) + h                 [app > PLUS]
+ * "f g h"                 => (f g) h                   [app left assoc]
+ *
+ * THE GRAMMAR RULES:
+ * ------------------
+ * We use three levels of rules:
+ *
+ * 1. expr: All expressions (operators, if, let, fun, etc.)
+ *    - Handles operator precedence via %left declarations
+ *
+ * 2. fun_app: Function application (chained left-to-right)
+ *    - "f x y" => (f x) y (left associative)
+ *    - Separated from expr to give application highest precedence
+ *
+ * 3. atomic: Primitive expressions (literals, variables, parenthesized exprs)
+ *    - Things that can appear as function arguments or operands
+ *    - No ambiguity at this level
+ *
+ * WHY THREE LEVELS?
+ * This layering naturally encodes precedence:
+ * - Operators are in expr, resolved by %left declarations
+ * - Application is separate (fun_app), so it binds tighter than operators
+ * - Atomics are simplest, never ambiguous
+ *
+ *)
+
 %{
 open MiniFunSyntax
 %}
@@ -7,7 +57,7 @@ open MiniFunSyntax
 %token PLUS MINUS TIMES AND NOT LESS
 %token IF THEN ELSE
 %token FUN ARROW
-%token LET REC IN
+%token LET LETFUN IN
 %token EQUAL
 %token LPAREN RPAREN
 %token EOF
@@ -36,7 +86,8 @@ open MiniFunSyntax
   This solves: "not a AND b" -------> (not a) AND b
   Not: not (a AND b)
 *)
-%left AND NOT
+%left AND 
+%left NOT
 
 (*
   LESS has higher precedence than boolean operators but lower than arithmetic.
@@ -88,11 +139,11 @@ expr:
 | LET x=VAR EQUAL e=expr IN b=expr { Let(x, e, b) }
 
 (*
-  LET REC: Same as LET, the %left IN ensures proper scoping.
-  This solves: "let rec f x = x in f 3 + 1" -------> let rec f x = x in ((f 3) + 1)
-  Not: (let rec f x = x in f 3) + 1
+  LETFUN: Recursive function definition.
+  This solves: "letfun f x = x in f 3 + 1" -------> letfun f x = x in ((f 3) + 1)
+  Not: (letfun f x = x in f 3) + 1
 *)
-| LET REC f=VAR x=VAR EQUAL e=expr IN b=expr { LetFun(f, x, e, b) }
+| LETFUN f=VAR x=VAR EQUAL e=expr IN b=expr { LetFun(f, x, e, b) }
 
 (*
   Binary operators: Precedence declarations handle these.
@@ -106,10 +157,6 @@ expr:
 | t1=expr LESS t2=expr { BinOp(t1, Less, t2) }
 | t1=expr AND t2=expr { BinOp(t1, And, t2) }
 
-(*
-  NOT: Declared with %left NOT for precedence.
-  This solves: "not a AND b" -------> (not a) AND b
-*)
 | NOT t=expr { UnaryOp(Not, t) }
 
 | t=fun_app { t }

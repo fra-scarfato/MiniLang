@@ -1,7 +1,7 @@
 open MiniLang
 
 let parse_arguments () =
-  (* Check if all the arguments are set *)
+  (* Check if the argument is set *)
   if Array.length Sys.argv != 2 then (
     prerr_endline "Usage: <input_file>";
     exit 1
@@ -36,8 +36,8 @@ let read_program in_file_name =
   let lexbuf = Lexing.from_channel in_file in
   let program =
     (* Execute the lexer and the parser *)
-    try MiniImpParser.prg MiniImpLexer.read lexbuf with
-    | MiniImpParser.Error ->
+    try MiniFunParser.main MiniFunLexer.read lexbuf with
+    | MiniFunParser.Error ->
         let pos = lexbuf.Lexing.lex_curr_p in
         Printf.eprintf
           "Syntax error at line %d, column %d: unexpected token '%s'\n"
@@ -54,6 +54,12 @@ let read_program in_file_name =
   close_in in_file;
   program
 
+let string_of_value (v : MiniFunSyntax.value) : string =
+  match v with
+  | MiniFunSyntax.Int n -> string_of_int n
+  | MiniFunSyntax.Bool b -> string_of_bool b
+  | MiniFunSyntax.Closure _ -> "<function>"
+
 let () =
   (* Parse command-line arguments to obtain the input file name *)
   let in_file_name = parse_arguments () in
@@ -64,7 +70,14 @@ let () =
   (* Read the input integer from standard input *)
   let input_int = read_input_integer () in
 
-  (* Evaluate the program with the provided input integer *)
-  let result = MiniImpEval.eval_program input_int program in
-
-  Printf.printf "\nThe result of the evaluation is: %i\n" result
+  (* Evaluate the program *)
+  try
+    let result = MiniFunEval.eval_program input_int program in
+    Printf.printf "\nThe result of the evaluation is: %s\n" (string_of_value result)
+  with
+  | Failure msg ->
+      Printf.eprintf "Runtime error: %s\n" msg;
+      exit 1
+  | e ->
+      Printf.eprintf "Unexpected error: %s\n" (Printexc.to_string e);
+      exit 1

@@ -89,8 +89,8 @@ command:
     | x = VAR; EQUAL; p = a_expr                                      {Assign(x, p)}
     | IF; cond = b_expr; THEN; p1 = command; ELSE; p2 = command       {If(cond, p1, p2)}
     | WHILE; cond = b_expr; DO; p = command                           {While(cond, p)}
-    | LPAREN; p = command_list; RPAREN                                  {p}
-    | SKIP                                                             {Skip}
+    | LPAREN; p = command_list; RPAREN                                {p}
+    | SKIP                                                            {Skip}
 
 a_expr:
     | LPAREN; p = a_expr; RPAREN                            {p}
@@ -101,6 +101,7 @@ a_expr:
     | p1 = a_expr; TIMES; p2 = a_expr                       {Times(p1, p2)}
 
 b_expr:
+    | LPAREN; p = b_expr; RPAREN                            {p}
     | TRUE                                                  {Bool true}
     | FALSE                                                 {Bool false}
     | NOT; p = b_expr                                       {Not p}

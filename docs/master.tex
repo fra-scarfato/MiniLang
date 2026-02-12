@@ -1,0 +1,1256 @@
+\documentclass[a4paper]{report}
+\author{Francesco Scarfato}
+\usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{mathtools}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{parskip}
+
+\geometry{
+    left=20mm,
+    right=20mm,
+    top=20mm,
+    bottom=20mm
+}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!60!black},
+    stringstyle=\color{red},
+    showstringspaces=false,
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny\color{gray}
+}
+
+\title{Languages, Compilers and Interpreters\\
+\large MiniImp, MiniFun, and MiniTyFun}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+\chapter{Introduction}
+This project implements four components: a compiler for MiniImp (a simple imperative language), an interpreter for MiniImp, an interpreter for MiniFun (a functional language), and a type checker for MiniTyFun (a statically-typed functional language).
+
+\section{Project overview}
+The project is implemented in OCaml using the following tools:
+
+\begin{itemize}
+    \item \textbf{Dune}: Build system for OCaml projects, managing compilation, dependencies, and testing
+    \item \textbf{Menhir}: LR(1) parser generator that transforms grammar specifications into OCaml parser code
+    \item \textbf{OCamllex}: Lexical analyzer generator that tokenizes source code
+    \item \textbf{OCaml Standard Library}: Provides functional data structures (Map, Set) used throughout the implementation
+\end{itemize}
+
+The entire codebase follows a pure functional style, avoiding mutable state. This design choice makes the code easier to reason about, test, and verify for correctness.
+
+\subsection{Code Structure}
+
+The implementation is organized into modular components under the \texttt{lib/} directory:
+
+\begin{itemize}
+    \item \textbf{miniImp/}: MiniImp language implementation
+    \begin{itemize}
+        \item \texttt{MiniImpSyntax.ml}: Abstract syntax tree definitions for the imperative language
+        \item \texttt{MiniImpLexer.mll}: Lexical analyzer (tokenizer) specification
+        \item \texttt{MiniImpParser.mly}: Grammar specification for parsing
+        \item \texttt{MiniImpEval.ml}: Interpreter implementation using operational semantics
+        \item \texttt{MiniImpCFG.ml}: Control Flow Graph construction for the compiler
+    \end{itemize}
+    
+    \item \textbf{miniFun/}: MiniFun language implementation  
+    \begin{itemize}
+        \item \texttt{MiniFunSyntax.ml}: AST definitions for the functional language
+        \item \texttt{MiniFunLexer.mll}: Lexical analyzer for functional syntax
+        \item \texttt{MiniFunParser.mly}: Grammar specification with operator precedence
+        \item \texttt{MiniFunEval.ml}: Environment-based interpreter with closures
+        \item \texttt{MiniTyFunSyntax.ml}: Extended AST with type annotations
+        \item \texttt{MiniTyFunTypeCheck.ml}: Static type checker implementation
+    \end{itemize}
+    
+    \item \textbf{miniRISC/}: Target assembly language and compiler backend
+    \begin{itemize}
+        \item \texttt{MiniRISCSyntax.ml}: RISC instruction set definitions
+        \item \texttt{MiniRISCUtils.ml}: Register analysis utilities (used/defined registers)
+        \item \texttt{MiniRISCCFG.ml}: Control flow graph data structures and utilities
+        \item \texttt{MiniRISCTranslation.ml}: MiniImp to MiniRISC translation phase
+        \item \texttt{MiniRISCDataflow.ml}: Dataflow analyses (definite variables, live variables)
+        \item \texttt{MiniRISCAllocation.ml}: Register allocation with coalescing and spilling
+        \item \texttt{MiniRISCLinearize.ml}: CFG to linear instruction stream conversion
+    \end{itemize}
+\end{itemize}
+
+The \texttt{bin/} directory contains executable entry points (\texttt{MiniImpCompiler.ml}, \texttt{MiniImpInterpreter.ml}, \texttt{MiniFunInterpreter.ml}) that orchestrate these modules into complete tools.
+
+\subsection{MiniImp: An Imperative Language}
+
+MiniImp is a minimal imperative language with variables, arithmetic expressions, boolean expressions, conditionals (\texttt{if-then-else}), and loops (\texttt{while}). Programs follow a simple structure:
+
+\begin{verbatim}
+def input_var output output_var as
+  commands
+\end{verbatim}
+
+Every MiniImp program takes one input parameter and produces one output value. For example, this factorial program demonstrates assignments, loops, and arithmetic operations:
+
+\begin{verbatim}
+def n output result as
+  result = 1;
+  while (n > 0) do
+    result = result * n;
+    n = n - 1
+\end{verbatim}
+
+For MiniImp, both a complete compiler and an interpreter were built. The \textbf{compiler} translates MiniImp to MiniRISC assembly through multiple phases: 
+\begin{itemize}
+    \item lexing/parsing (OCamllex/Menhir), 
+    \item Control Flow Graph construction with maximal basic blocks, 
+    \item translation to register-based assembly with unlimited virtual registers, 
+    \item dataflow analysis (definite variables and live variables), 
+    \item register coalescing (optional optimization using instruction-level liveness), 
+    \item register allocation (frequency-based heuristics), 
+    \item spilling (load/store generation for memory), 
+    \item final code generation. 
+\end{itemize}
+The compiler performs algebraic simplifications during translation.
+
+The \textbf{interpreter} provides a implementation that directly evaluates the AST using operational semantics, maintaining an environment mapping variables to values.
+\subsection{MiniFun: A Functional Language}
+
+MiniFun is a functional language based on the lambda calculus. It features anonymous functions (\texttt{fun}), function application, local bindings (\texttt{let}), recursive functions (\texttt{letfun}), conditionals, and arithmetic/boolean operations. Functions are first-class values and support closures (capturing their lexical environment). The language uses currying: multi-argument functions are represented as nested single-argument functions.
+
+\begin{verbatim}
+letfun factorial n =
+  if n < 2 then 1
+  else n * factorial (n - 1)
+in factorial 5
+\end{verbatim}
+
+MiniFun is dynamically typed—type errors are detected at runtime during evaluation.
+An environment-based interpreter was built for MiniFun. It includes:
+\begin{itemize}
+    \item lexing/parsing to build the AST, 
+    \item a recursive evaluator using environments to map variables to values, 
+    \item closure implementation (functions capture their defining environment for lexical scoping), 
+    \item recursion handling through a special closure variant that binds the function name in its own body.
+\end{itemize}
+
+\subsection{MiniTyFun: A Statically-Typed Functional Language}
+
+MiniTyFun extends MiniFun with static type checking. Function parameters and recursive functions require explicit type annotations. The type system includes three types: \texttt{Int}, \texttt{Bool}, and \texttt{Closure($\tau_1$, $\tau_2$)} for functions from type $\tau_1$ to $\tau_2$. Programs are type-checked before execution, and well-typed programs are guaranteed not to have runtime type errors.
+
+\begin{verbatim}
+letfun factorial (n : Int) =
+  if n < 2 then 1
+  else n * factorial (n - 1)
+in factorial 5
+\end{verbatim}
+
+A static type checker was built for MiniTyFun. It includes:
+\begin{itemize}
+    \item syntax extensions to handle type annotations on function parameters and recursive functions, 
+    \item a recursive type checker that verifies program correctness using typing rules, 
+    \item a type environment (separate from value environment) that maps variables to their types, 
+\end{itemize} 
+
+\section{Building and Running the Project}
+
+To build all components of the project:
+
+\begin{verbatim}
+dune build
+\end{verbatim}
+
+This compiles all three language implementations (MiniImp compiler, MiniFun interpreter, and MiniTyFun type checker) along with their dependencies. The compiled executables are placed in the \texttt{\_build/default/bin/} directory.
+
+The MiniImp compiler translates \texttt{.minimp} source files to \texttt{.risc} assembly files:
+
+\begin{verbatim}
+dune exec MiniImpCompiler -- [OPTIONS] <num_registers> <input.minimp> <output.risc>
+\end{verbatim}
+
+\textbf{Required Arguments:}
+\begin{itemize}
+    \item \texttt{num\_registers}: Number of physical registers available (minimum 4)
+    \item \texttt{input.minimp}: Path to the MiniImp source file
+    \item \texttt{output.risc}: Path for the generated MiniRISC assembly output
+\end{itemize}
+
+\textbf{Optional Flags:}
+\begin{itemize}
+    \item \texttt{-O}: Enable optimizations (register coalescing)
+    \item \texttt{-s}: Enable safety checking (detect uninitialized variables)
+    \item \texttt{-v}: Verbose output (show intermediate compilation stages)
+\end{itemize}
+
+\textbf{Example:}
+\begin{verbatim}
+dune exec MiniImpCompiler -- -O -s 8 examples/factorial.minimp output.risc
+\end{verbatim}
+
+This compiles \texttt{factorial.minimp} with 8 physical registers, optimizations enabled, and safety checking on.
+
+\subsection{Running the MiniImp Interpreter}
+
+The MiniImp interpreter directly evaluates \texttt{.minimp} source files without compilation:
+
+\begin{verbatim}
+dune exec MiniImpInterpreter <input.minimp>
+\end{verbatim}
+
+\textbf{Required Arguments:}
+\begin{itemize}
+    \item \texttt{input.minimp}: Path to the MiniImp source file
+\end{itemize}
+
+\textbf{Example:}
+\begin{verbatim}
+dune exec MiniImpInterpreter examples/simple.minimp
+\end{verbatim}
+
+The interpreter parses the program and evaluates it directly using the operational semantics, without generating assembly code. This is useful for testing program correctness and comparing against compiled output.
+
+\subsection{Running the MiniFun Interpreter}
+
+The MiniFun interpreter evaluates \texttt{.minifun} source files:
+
+\begin{verbatim}
+dune exec MiniFunInterpreter <input.minifun>
+\end{verbatim}
+
+\textbf{Required Arguments:}
+\begin{itemize}
+    \item \texttt{input.minifun}: Path to the MiniFun source file
+\end{itemize}
+
+\textbf{Example:}
+\begin{verbatim}
+dune exec MiniFunInterpreter examples/factorial.minifun
+\end{verbatim}
+
+The interpreter parses the program, evaluates it using environment-based semantics, and prints the result.
+
+\chapter{MiniTyFun Type System}
+
+MiniTyFun extends MiniFun with static type checking. The key difference from MiniFun is the addition of explicit type annotations on function parameters and recursive function definitions.
+
+\section{Syntax Extensions}
+
+The syntax of MiniTyFun extends MiniFun in two ways:
+
+\begin{lstlisting}[language=ML, caption=MiniTyFun Syntax Extensions]
+(* MiniFun: no types *)
+Fun of string * term
+
+(* MiniTyFun: parameter has explicit type *)
+Fun of string * typ * term
+  (* fun (x : Int) -> x + 1 *)
+
+(* MiniFun: recursive function *)
+LetFun of string * string * term * term
+
+(* MiniTyFun: recursive function with type annotation *)
+LetFun of string * string * typ * term * term
+  (* letfun f (x : Int -> Int) = ... in ... *)
+\end{lstlisting}
+
+The type language includes three constructors:
+\begin{itemize}
+    \item \texttt{Int}: Type of integers
+    \item \texttt{Bool}: Type of booleans  
+    \item \texttt{Closure($\tau_1$, $\tau_2$)}: Type of functions from $\tau_1$ to $\tau_2$
+\end{itemize}
+
+The type system provides a strong guarantee:
+
+If $\emptyset \vdash e : \tau$, then either:
+\begin{itemize}
+    \item $e$ evaluates to a value of type $\tau$, or
+    \item $e$ diverges (infinite loop), or  
+    \item $e$ fails with a non-type error (e.g., unbound variable)
+\end{itemize}
+But $e$ will \textbf{never} have a runtime type error (adding Int to Bool, calling a non-function, etc.).
+
+\chapter{Parser Design and Ambiguity Resolution}
+
+Parsing transforms a flat stream of tokens into a structured Abstract Syntax Tree (AST). The main challenge is handling ambiguity—multiple possible parse trees for the same input. We use Menhir (an LR(1) parser generator) with explicit precedence and associativity declarations.
+
+\section{MiniImp Parser: Ambiguities and Solutions}
+
+\subsection{The Dangling Semicolon Problem}
+
+Consider this code:
+\begin{verbatim}
+if x > 0 then y := 1 else y := 2; z := 3
+\end{verbatim}
+
+This could be parsed two ways:
+\begin{enumerate}
+    \item \texttt{(if x > 0 then y := 1 else y := 2); z := 3} — semicolon sequences the if with z assignment
+    \item \texttt{if x > 0 then y := 1 else (y := 2; z := 3)} — semicolon is inside the else branch
+\end{enumerate}
+
+\textbf{Solution:} The grammar rule for \texttt{command\_list} makes sequencing explicit:
+\begin{verbatim}
+command_list:
+  | c1 = command; SEMICOLON; c2 = command_list  { Seq(c1, c2) }
+  | c = command; SEMICOLON                      { c }
+  | c = command                                 { c }
+\end{verbatim}
+
+And critically, \texttt{if} and \texttt{while} accept a single \texttt{command}, not a \texttt{command\_list}:
+\begin{verbatim}
+command:
+  | IF; cond = b_expr; THEN; p1 = command; 
+    ELSE; p2 = command                          { If(cond, p1, p2) }
+\end{verbatim}
+
+This means \texttt{if...then...else} captures exactly \textit{one} command per branch. To include a sequence, you must use parentheses:
+\begin{verbatim}
+if x > 0 then (y := 1; z := 2) else y := 3
+\end{verbatim}
+
+\subsection{Operator Precedence}
+
+Consider \texttt{a + b * c}:
+\begin{enumerate}
+    \item \texttt{a + (b * c)} — multiplication first (correct)
+    \item \texttt{(a + b) * c} — left-to-right (wrong)
+\end{enumerate}
+
+\textbf{Our Solution:} Precedence declarations:
+\begin{verbatim}
+%left PLUS MINUS
+%left TIMES
+\end{verbatim}
+
+Lower in the file = higher precedence. So \texttt{TIMES} binds tighter than \texttt{PLUS/MINUS}.
+
+The \texttt{\%left} means left-associative, so \texttt{a - b + c} becomes \texttt{(a - b) + c}.
+
+The alternative is encoding precedence in the grammar itself with multiple levels of nonterminals (expr → term → factor → atom). That works but makes the grammar confusing. Precedence declarations are clearer and match standard mathematical conventions directly.
+
+\subsection{Negative Number Ambiguity}
+
+Consider \texttt{x - 5}. Is the minus:
+\begin{enumerate}
+    \item A binary operator (subtraction)
+    \item Part of a negative literal (-5)
+\end{enumerate}
+
+\textbf{Solution:} The grammar has a special rule for integer literals:
+\begin{verbatim}
+int:
+  | p = INT                { p }
+  | MINUS; p = INT         { -p }
+\end{verbatim}
+
+And \texttt{MINUS} is also a binary operator in \texttt{a\_expr}:
+\begin{verbatim}
+a_expr:
+  | p1 = a_expr; MINUS; p2 = a_expr    { Minus(p1, p2) }
+\end{verbatim}
+
+The parser resolves this by context: \texttt{MINUS INT} creates a negative literal, while \texttt{expr MINUS expr} creates a subtraction node.
+
+\section{MiniFun Parser: Ambiguities and Solutions}
+
+\subsection{Let Body Precedence}
+
+Consider:
+\begin{verbatim}
+let x = 1 in x + 2 * 3
+\end{verbatim}
+
+Where does the \texttt{let} body end? Is it:
+\begin{enumerate}
+    \item \texttt{let x = 1 in (x + 2 * 3)} — body is entire expression (correct)
+    \item \texttt{(let x = 1 in x + 2) * 3} — body ends early (wrong)
+\end{enumerate}
+
+The same issue appears with \texttt{fun} (where does the arrow's body end?) and \texttt{if...else} (where does the else branch end?).
+
+\textbf{Solution:} Precedence declarations give \texttt{IN}, \texttt{ARROW}, and \texttt{ELSE} the \textit{lowest} precedence:
+\begin{verbatim}
+%left IN ELSE ARROW
+%left AND NOT
+%left LESS  
+%left PLUS MINUS
+%left TIMES
+\end{verbatim}
+
+This means they bind weakest—their bodies extend as far right as possible.
+
+So \texttt{let x = 1 in x + 2 * 3} parses as \texttt{let x = 1 in (x + (2 * 3))} because \texttt{TIMES} and \texttt{PLUS} bind tighter than \texttt{IN}.
+
+\subsection{Function Application Precedence}
+
+Consider:
+\begin{verbatim}
+f g + h
+\end{verbatim}
+
+Is this:
+\begin{enumerate}
+    \item \texttt{(f g) + h} — apply f to g, then add h (correct)
+    \item \texttt{f (g + h)} — compute g+h, then apply f (wrong)
+\end{enumerate}
+
+\textbf{Solution:} We use a three-level grammar:
+\begin{verbatim}
+expr:        (* operators, if, let, fun *)
+  | ...
+  | t = fun_app { t }
+
+fun_app:     (* function application *)
+  | t1 = fun_app; t2 = atomic   { FunApp(t1, t2) }
+  | t = atomic                  { t }
+
+atomic:      (* literals, variables, parentheses *)
+  | n = INT                     { IntLit n }
+  | ...
+\end{verbatim}
+
+Function application is in its own middle layer. Since \texttt{expr} references \texttt{fun\_app}, which references \texttt{atomic}, applications bind tighter than any operator.
+\subsection{Application Associativity}
+
+Consider:
+\begin{verbatim}
+f g h
+\end{verbatim}
+
+In curried function application, is this:
+\begin{enumerate}
+    \item \texttt{(f g) h} — left-associative (correct)
+    \item \texttt{f (g h)} — right-associative (wrong)
+\end{enumerate}
+
+\textbf{Solution:} The \texttt{fun\_app} rule is left-recursive:
+\begin{verbatim}
+fun_app:
+  | t1 = fun_app; t2 = atomic   { FunApp(t1, t2) }
+\end{verbatim}
+
+Left recursion in a left-to-right parser (like LR(1)) produces left-associative trees.
+
+We choose left-associative application because it's standard in functional languages (ML, Haskell, OCaml). It matches programmer expectations.
+
+\subsection{The Dangling Else (Same as MiniImp)}
+
+Consider:
+\begin{verbatim}
+if c1 then if c2 then t1 else t2
+\end{verbatim}
+
+Which \texttt{if} does the \texttt{else} belong to?
+
+\textbf{Solution:} The \texttt{\%left ELSE} declaration means "in a conflict, prefer shifting (closing the inner if)." So this parses as:
+\begin{verbatim}
+if c1 then (if c2 then t1 else t2)
+\end{verbatim}
+
+The \texttt{else} matches the nearest \texttt{if}.
+
+\textbf{Why this behavior?} It's the standard convention in most programming languages (C, Java, Python, etc.). Programmers expect \texttt{else} to match the nearest \texttt{if}.
+
+\chapter{Control Flow Graph Construction}
+
+The Control Flow Graph (CFG) is the foundation for all analysis and optimization. It represents program structure as a graph where nodes are basic blocks (sequences of straight-line code) and edges are possible control flow transitions.
+
+\section{Minimal or maximal blocks}
+Given a MiniImp AST with nested \texttt{Seq} nodes, we need to build a CFG. Two extreme approaches:
+
+\textbf{Minimal Blocks:} One command per block.
+\begin{itemize}
+    \item Pro: Simple, explicit, predictable
+    \item Con: Many tiny blocks, less efficient for analysis, multiple jump instructions
+\end{itemize}
+
+\textbf{Maximal Blocks:} Longest possible sequences without branches.
+\begin{itemize}
+    \item Pro: Fewer blocks, more efficient
+    \item Con: More complex
+\end{itemize}
+
+\section{Building Maximal Blocks Directly}
+We rejected a naive "one block per statement, then merge" approach. Instead, we build optimal blocks directly using a two-step process:
+
+\textbf{Step 1: Flatten Sequences}
+
+The parser produces deeply nested \texttt{Seq} trees:
+\begin{verbatim}
+Seq(s1, Seq(s2, Seq(s3, Seq(s4, ...))))
+\end{verbatim}
+
+This is natural for recursive parsing but not efficient for iteration. We flatten it to a list:
+\begin{verbatim}
+[s1; s2; s3; s4; ...]
+\end{verbatim}
+
+The flattening code is simple:
+\begin{lstlisting}[language=ML]
+let rec flatten_cmd cmd =
+  match cmd with
+  | Seq (c1, c2) -> flatten_cmd c1 @ flatten_cmd c2
+  | _ -> [cmd]
+\end{lstlisting}
+This gives us a linear list of statements to process.
+
+\textbf{Step 2: Accumulate Into Blocks}
+
+Now we process the flat list, accumulating straight-line statements into the current block. When we hit a branch point (if, while), we:
+\begin{enumerate}
+    \item Close the current block
+    \item Create blocks for the branch paths
+    \item Recursively process sub-commands  
+    \item Create a join block where paths merge
+\end{enumerate}
+
+Every CFG has dedicated entry and exit blocks, even if they only contain \texttt{Skip}. This provides clear starting/ending points for dataflow analysis and ensures uniformity across all CFGs.
+
+\chapter{Translation from MiniImp to MiniRISC}
+
+The translation phase converts high-level MiniImp (with variables and expressions) to low-level MiniRISC (with registers and explicit instructions). This is the "compiler" in the traditional sense.
+
+We use a strict separation:
+\begin{enumerate}
+    \item \textbf{Expressions} always compute into a FRESH temporary register
+    \item \textbf{Assignments} explicitly copy the result to the target variable
+\end{enumerate}
+
+This creates extra \texttt{copy} instructions, but it's simple and avoids a critical bug.
+
+\section{Variable Mapping Strategy}
+
+We maintain a map: \texttt{variable\_name → register\_name}
+\begin{itemize}
+    \item \texttt{"x"} → \texttt{r5}
+    \item \texttt{"counter"} → \texttt{r12}
+\end{itemize}
+
+\textbf{Special Cases:}
+\begin{itemize}
+    \item Input variable \textbf{always} maps to \texttt{r\_in}
+    \item Output variable \textbf{always} maps to \texttt{r\_out}
+\end{itemize}
+
+In the first phase, we generate code with \textit{unlimited} virtual registers (r0, r1, r2, ... r42, etc.). 
+The second phase (register allocation) maps these virtual registers to a fixed number of physical registers.
+
+\section{Algebraic Simplification During Translation}
+
+We perform optimizations while we can still see the AST structure:
+
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Pattern} & \textbf{Optimization} & \textbf{Why} \\
+\hline
+\texttt{x + 0} & No code generated & Identity operation \\
+\texttt{0 + x} & \texttt{copy x => r} & Identity operation \\
+\texttt{x * 0} & \texttt{loadi 0 => r} & Constant result \\
+\texttt{x * 1} & \texttt{copy x => r} & Identity operation \\
+\texttt{1 * x} & \texttt{copy x => r} & Identity operation \\
+\hline
+\end{tabular}
+
+In this way, it's easier to recognize \texttt{x * 0} in the AST than after generating:
+\begin{verbatim}
+loadi 0 => r1
+mult r2 r1 => r3
+\end{verbatim}
+\section{Translation of Control Flow}
+
+\subsection{Conditionals}
+
+An \texttt{if} statement translates to:
+\begin{enumerate}
+    \item Evaluate condition into a register
+    \item Generate \texttt{branch} instruction with true/false labels
+    \item Translate both branches
+    \item Both branches jump to a join label
+\end{enumerate}
+
+Example:
+\begin{verbatim}
+if (x > 0) then y := 1 else y := 2
+\end{verbatim}
+
+Translates to:
+\begin{verbatim}
+loadi 0 => r1
+less r1 r_x => r_cond
+branch r_cond => L_then, L_else
+
+L_then:
+  loadi 1 => r_temp
+  copy r_temp => r_y
+  jump => L_join
+
+L_else:
+  loadi 2 => r_temp
+  copy r_temp => r_y
+  jump => L_join
+
+L_join:
+  ...
+\end{verbatim}
+
+\subsection{Loops}
+
+A \texttt{while} loop translates to:
+\begin{enumerate}
+    \item Header label (loop entry point)
+    \item Evaluate condition
+    \item Branch: true → body, false → exit
+    \item Translate body
+    \item Jump back to header
+    \item Exit label (after loop)
+\end{enumerate}
+
+Example:
+\begin{verbatim}
+while (x > 0) do x := x - 1
+\end{verbatim}
+
+Translates to:
+\begin{verbatim}
+L_header:
+  loadi 0 => r1
+  less r1 r_x => r_cond
+  branch r_cond => L_body, L_exit
+
+L_body:
+  loadi 1 => r2
+  sub r_x r2 => r_temp
+  copy r_temp => r_x
+  jump => L_header
+
+L_exit:
+  ...
+\end{verbatim}
+
+Notice the body jumps back to the header, creating the loop.
+
+\chapter{Dataflow Analysis}
+
+Dataflow analysis is how compilers understand program behavior without executing it. We analyze the control flow graph to compute properties like "which variables are definitely defined?" and "which variables might be used later?"
+
+The dataflow analyses follow the same fixpoint algorithm pattern:
+
+\begin{enumerate}
+    \item \textbf{Initialize} all blocks with a starting state (TOP or BOTTOM)
+    \item \textbf{Iterate:} For each block, compute new IN/OUT based on neighbors
+    \item \textbf{Check:} If anything changed, repeat step 2
+    \item \textbf{Done:} When nothing changes, we've reached a "fixpoint"
+\end{enumerate}
+
+This always terminates because we work with finite sets (registers), updates are monotonic (sets only grow or shrink, never oscillate), and there's a maximum size we can't exceed.
+
+\section{Definite Variables Analysis (Forward, Must)}
+
+The define variable analysis detects uninitialized register usage—a safety check that prevents using variables before they're defined.
+
+\subsection{Algorithm Details}
+
+\textbf{Direction:} Forward (follow execution order from entry to exit)
+
+\textbf{Join Operation:} Intersection ($\cap$) — a variable is definitely defined only if defined on \textit{all} incoming paths.
+
+\textbf{Transfer Function:}
+\[
+\text{OUT}[B] = \text{IN}[B] \cup \text{Defined}[B]
+\]
+
+\textbf{Join at Block Entry:}
+\[
+\text{IN}[B] = \bigcap_{\text{pred}} \text{OUT}[\text{pred}]
+\]
+
+\textbf{Initialization:} TOP (all registers assumed defined everywhere, except entry where only \texttt{r\_in} is defined)
+
+This is a \textit{must} analysis (greatest fixpoint). Starting optimistically (everything defined) and shrinking down ensures we only keep properties that are truly guaranteed.
+
+\subsection{Implementation}
+
+The analysis state is represented using immutable maps:
+
+We use immutable maps throughout:
+\begin{lstlisting}[language=ML]
+type analysis_result = {
+  in_sets : RegisterSet.t BlockMap.t;
+  out_sets : RegisterSet.t BlockMap.t;
+}
+\end{lstlisting}
+
+Each iteration returns a new \texttt{analysis\_result}. 
+
+The core iteration loop implements the fixpoint algorithm. Here's how it works:
+
+\begin{lstlisting}[language=ML, caption=Definite Variables Fixpoint Iteration]
+let rec iterate iteration out_state =
+  let new_out_state, new_in_state, changed =
+    BlockMap.fold
+      (fun id block (acc_out_state, acc_in_state, acc_changed) ->
+        (* Get predecessors of the current block *)
+        let preds = get_predecessors cfg id in
+        
+        (* Compute IN[B] = intersection of OUT[pred] *)
+        let in_value =
+          match preds with
+          | [] ->
+              (* Entry block: only r_in is defined *)
+              if id = cfg.entry then 
+                RegisterSet.singleton input_register
+              else all_regs  (* Unreachable *)
+          | p :: ps ->
+              (* Intersect OUT sets of all predecessors *)
+              List.fold_left
+                (fun acc p -> RegisterSet.inter acc (get_out p))
+                (get_out p) ps
+        in
+        
+        (* Compute OUT[B] = IN[B] union Defined[B] *)
+        let defined_here = compute_defined block in
+        let out_value = RegisterSet.union in_value defined_here in
+        
+        (* Check if anything changed *)
+        let old_out = BlockMap.find id out_state in
+        let has_changed = 
+          not (RegisterSet.equal out_value old_out) in
+        
+        (* Return updated state *)
+        (BlockMap.add id out_value acc_out_state,
+         BlockMap.add id in_value acc_in_state,
+         acc_changed || has_changed)
+      )
+      cfg.blocks
+      (out_state, BlockMap.empty, false)
+  in
+  
+  (* Continue iterating if anything changed *)
+  if changed then iterate (iteration + 1) new_out_state
+  else (iteration, new_out_state, new_in_state)
+\end{lstlisting}
+
+Key implementation details:
+
+\textbf{1. Initialization:} All blocks start with TOP (all registers defined), except the entry block which has only \texttt{r\_in}.
+
+\textbf{2. Meet Operation:} The intersection (\texttt{RegisterSet.inter}) ensures we only keep registers defined on \textit{all} paths.
+
+\textbf{3. Transfer Function:} Union of incoming definitions with locally defined registers (\texttt{RegisterSet.union}).
+
+\textbf{4. Termination:} The loop continues until no OUT set changes (\texttt{RegisterSet.equal}).
+
+\textbf{5. Pure Functional Style:} Each iteration creates new maps rather than mutating existing ones. This makes the code easier to reason about and test.
+
+\textbf{Safety Checking:} The analysis result is used to detect uninitialized variables:
+
+\begin{lstlisting}[language=ML, caption=Safety Check Using Definite Variables]
+let check_safety cfg =
+  let analysis_result = analyze cfg in
+  
+  let check_block id block =
+    (* Get definitely-defined registers at block entry *)
+    let initial_defs = BlockMap.find id analysis_result.in_sets in
+    
+    (* Check each instruction *)
+    List.fold_left
+      (fun (current_defs, errors) cmd ->
+        let used = get_used_registers cmd in
+        let defs = get_defined_registers cmd in
+        
+        (* Check if all used registers are defined *)
+        let new_errors = List.fold_left
+          (fun errs r ->
+            if not (RegisterSet.mem r current_defs) then
+              let err = Printf.sprintf 
+                "Block %d: Register %s used before definition"
+                id (string_of_register r)
+              in err :: errs
+            else errs
+          ) errors used
+        in
+        
+        (* Update definitions for next instruction *)
+        let updated_defs = List.fold_right 
+          RegisterSet.add defs current_defs in
+        (updated_defs, new_errors)
+      )
+      (initial_defs, []) block.commands
+  in
+  
+  (* Check all blocks and collect errors *)
+  let all_errors = BlockMap.fold
+    (fun id block acc -> check_block id block @ acc)
+    cfg.blocks []
+  in
+  all_errors = []  (* Safe if no errors *)
+\end{lstlisting}
+
+This implementation threads the set of defined registers through each instruction, checking that every use is preceded by a definition.
+
+\section{Live Variables Analysis (Backward, May)}
+The live variable analysis determine which registers might be used later. It is essential for register coalescing (merge registers with disjoint live ranges)
+
+\subsection{Algorithm Details}
+
+\textbf{Direction:} Backward (propagate from exit to entry, opposite of execution order)
+
+\textbf{Join Operation:} Union ($\cup$) — a variable is live if it \textit{might} be used on \textit{any} path.
+
+\textbf{Transfer Function:}
+\[
+\text{IN}[B] = (\text{OUT}[B] - \text{Def}[B]) \cup \text{Use}[B]
+\]
+
+Where:
+\begin{itemize}
+    \item \texttt{Use[B]} = registers read before being written in block
+    \item \texttt{Def[B]} = registers written in block
+\end{itemize}
+
+\textbf{Join at Block Exit:}
+\[
+\text{OUT}[B] = \bigcup_{\text{succ}} \text{IN}[\text{succ}]
+\]
+
+\textbf{Initialization:} BOTTOM (empty set everywhere)
+
+This is a \textit{may} analysis (least fixpoint). Starting pessimistically (nothing live) and growing ensures we find all potentially live variables.
+
+\subsection{Data Structures}
+
+The live variables analysis uses multiple interconnected data structures to track liveness at different granularities:
+
+\textbf{1. Block-Level Liveness Maps:}
+\begin{lstlisting}[language=ML]
+block_in  : RegisterSet.t BlockMap.t   (* Live at block entry *)
+block_out : RegisterSet.t BlockMap.t   (* Live at block exit *)
+\end{lstlisting}
+
+These maps associate each block ID with a set of registers. The \texttt{block\_out} map is computed through fixpoint iteration (propagating backward from successors). The \texttt{block\_in} map is derived from \texttt{block\_out} using the transfer function.
+
+\textbf{2. Instruction-Level Liveness Map:}
+\begin{lstlisting}[language=ML]
+instr_after : RegisterSet.t InstrPointMap.t
+\end{lstlisting}
+
+This map tracks liveness after each instruction, keyed by instruction points:
+\begin{lstlisting}[language=ML]
+type instr_point = 
+  | AfterInstr of int              (* After instruction i in block *)
+  | Entry                           (* Before first instruction *)
+  
+type instr_point_key = block_id * instr_point
+\end{lstlisting}
+
+\textbf{3. Control Flow Graph:}
+\begin{lstlisting}[language=ML]
+type risc_cfg = {
+  blocks : risc_cfg_block BlockMap.t;   (* All basic blocks *)
+  entry : block_id;                      (* Entry block ID *)
+  exit : block_id;                       (* Exit block ID *)
+}
+\end{lstlisting}
+
+The CFG provides successor/predecessor relationships needed for fixpoint iteration.
+
+Once the fixpoint converges, \texttt{block\_out} values seed the instruction-level backward walk. For each block, we start with its converged OUT set and propagate backward through instructions.
+The \texttt{instr\_after} map records liveness after each instruction within blocks. This gives precise lifetime information for sequential code.
+
+\subsection{Implementation}
+
+The live variables analysis uses a backward (reverse execution order) fixpoint algorithm. The analysis state includes both block-level and instruction-level liveness:
+
+\begin{lstlisting}[language=ML, caption=Live Variables Analysis State]
+type analysis_result = {
+  block_in : RegisterSet.t BlockMap.t;   (* Live at block entry *)
+  block_out : RegisterSet.t BlockMap.t;  (* Live at block exit *)
+  instr_after : RegisterSet.t InstrPointMap.t;  
+    (* Live after each instruction *)
+}
+\end{lstlisting}
+
+First, we compute local information for each block—which registers are used before being defined (upward exposed) and which are defined (killed):
+
+\begin{lstlisting}[language=ML, caption=Computing Upward Exposed Uses]
+let compute_local_info block =
+  let upward_exposed, killed =
+    List.fold_left
+      (fun (exposed, killed) cmd ->
+        let uses = get_used_registers cmd in
+        let defs = get_defined_registers cmd in
+        
+        (* Add to exposed if used before killed *)
+        let new_exposed = List.fold_left
+          (fun acc u ->
+            if RegisterSet.mem u killed then acc 
+            else RegisterSet.add u acc)
+          exposed uses
+        in
+        
+        (* Update killed set *)
+        let new_killed = 
+          List.fold_right RegisterSet.add defs killed in
+        (new_exposed, new_killed)
+      )
+      (RegisterSet.empty, RegisterSet.empty)
+      block.commands
+  in
+  (upward_exposed, killed)
+\end{lstlisting}
+
+The key insight: a register is "upward exposed" if it's used in the block before being defined. These are the registers that must be live at block entry.
+
+The block-level backward analysis then propagates liveness information:
+
+\begin{lstlisting}[language=ML, caption=Block-Level Backward Fixpoint]
+let rec iterate iteration in_state =
+  let new_in_state, new_out_state, changed =
+    BlockMap.fold
+      (fun id block (acc_in, acc_out, acc_changed) ->
+        (* Get successors of current block *)
+        let succs = get_successors cfg id in
+        
+        (* OUT[B] = union of IN[succ] for all successors *)
+        let out_value = match succs with
+          | [] -> 
+              (* Exit block: only r_out is live *)
+              if id = cfg.exit then 
+                RegisterSet.singleton output_register
+              else RegisterSet.empty
+          | _ ->
+              List.fold_left
+                (fun acc (succ_id, _) ->
+                  let succ_in = get_in succ_id acc_in in
+                  RegisterSet.union acc succ_in)
+                RegisterSet.empty succs
+        in
+        
+        (* IN[B] = Use[B] union (OUT[B] - Def[B]) *)
+        let (upward_exposed, killed) = 
+          compute_local_info block in
+        let in_value = 
+          RegisterSet.union upward_exposed
+            (RegisterSet.diff out_value killed) in
+        
+        (* Check for changes *)
+        let old_in = BlockMap.find id in_state in
+        let has_changed = 
+          not (RegisterSet.equal in_value old_in) in
+        
+        (BlockMap.add id in_value acc_in,
+         BlockMap.add id out_value acc_out,
+         acc_changed || has_changed)
+      )
+      cfg.blocks
+      (in_state, BlockMap.empty, false)
+  in
+  
+  if changed then iterate (iteration + 1) new_in_state
+  else (iteration, new_in_state, new_out_state)
+\end{lstlisting}
+
+Key differences from definite variables:
+
+\textbf{1. Direction:} Backward—we start from exit blocks and work toward entry.
+
+\textbf{2. Meet Operation:} Union (\texttt{RegisterSet.union}) instead of intersection. A register is live if it's live on \textit{any} successor path.
+
+\textbf{3. Initialization:} BOTTOM (empty sets), growing upward as we discover live variables.
+
+\textbf{4. Transfer Function:} IN[B] = Use[B] $\cup$ (OUT[B] - Def[B])—add upward exposed uses and propagate live variables that aren't killed.
+
+\subsection{Instruction-Level Liveness}
+
+The live variables analysis computes liveness at two granularities. Standard block-level analysis tells us what's live at block boundaries (IN[block] and OUT[block]), but for register coalescing, we need finer granularity: live \textit{after each instruction}.
+
+\textbf{Algorithm:}
+
+Given block-level OUT set, propagate backward through instructions:
+
+\begin{lstlisting}[language=ML, caption=Instruction-Level Liveness Propagation]
+let compute_instruction_level_liveness cfg block_out_sets =
+  BlockMap.fold (fun block_id block acc_map ->
+    (* Get all instructions (commands + terminator) *)
+    let all_instrs = match block.terminator with
+      | None -> block.commands
+      | Some term -> block.commands @ [term]
+    in
+    
+    (* Start with what's live at block exit *)
+    let block_out = BlockMap.find block_id block_out_sets in
+    
+    (* Walk backward through instructions *)
+    let rec backward_walk instr_idx current_live acc =
+      if instr_idx < 0 then
+        (* Reached start - record entry point *)
+        InstrPointMap.add (block_id, Entry) current_live acc
+      else
+        let instr = List.nth all_instrs instr_idx in
+        
+        (* Record: what's live AFTER this instruction *)
+        let point = (block_id, AfterInstr instr_idx) in
+        let updated_acc = 
+          InstrPointMap.add point current_live acc in
+        
+        (* Compute what's live BEFORE this instruction *)
+        let defs = get_defined_registers instr in
+        let uses = get_used_registers instr in
+        let live_before =
+          (* Remove killed registers, add used registers *)
+          let after_kill = List.fold_right 
+            RegisterSet.remove defs current_live in
+          List.fold_right RegisterSet.add uses after_kill
+        in
+        
+        (* Continue to previous instruction *)
+        backward_walk (instr_idx - 1) live_before updated_acc
+    in
+    
+    (* Start from last instruction *)
+    backward_walk (List.length all_instrs - 1) block_out acc_map
+  ) cfg.blocks InstrPointMap.empty
+\end{lstlisting}
+
+This is a single backward pass through the block. Once we know OUT[block] from the block-level analysis, we can compute precise liveness for every instruction point.
+
+\chapter{Optimization and Register Allocation}
+
+Register allocation is the heart of the compiler. We must map unlimited virtual registers to a fixed number of physical registers, inserting memory loads/stores when we run out.
+
+\section{Target Architecture}
+
+With \textit{n} total physical registers:
+
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Registers} & \textbf{Count} & \textbf{Purpose} \\
+\hline
+\texttt{r\_in} & 1 & Input (never spilled) \\
+\texttt{r\_out} & 1 & Output (never spilled) \\
+\texttt{r\_a, r\_b} & 2 & Swap registers for spilling \\
+\texttt{r0..r\textsubscript{n-5}} & n-4 & General-purpose \\
+\hline
+\textbf{Total} & n & \\
+\hline
+\end{tabular}
+
+\textbf{Available for variables:} n - 4 registers (excluding I/O and swap)
+
+\textbf{Minimum:} n = 4 (must have at least I/O + swap)
+
+\section{Register Coalescing (Optional)}
+
+The goal is to merge virtual registers that never interfere.
+
+\subsection{Live Range Construction}
+
+The first step is converting instruction-level liveness into per-register live ranges:
+
+\begin{lstlisting}[language=ML, caption=Building Live Ranges from Liveness]
+(* Type: register -> set of instruction points *)
+type live_range = InstrPointSet.t RangeMap.t
+
+let compute_live_ranges_from_liveness liveness_result =
+  (* Invert the map: from (point -> live_set) 
+     to (register -> point_set) *)
+  InstrPointMap.fold
+    (fun point live_set acc ->
+      RegisterSet.fold
+        (fun reg range_map ->
+          let current_points =
+            try RangeMap.find reg range_map
+            with Not_found -> InstrPointSet.empty
+          in
+          (* Add this point to the register's live range *)
+          RangeMap.add reg
+            (InstrPointSet.add point current_points)
+            range_map
+        )
+        live_set acc
+    )
+    liveness_result.instr_after RangeMap.empty
+\end{lstlisting}
+
+This creates a map where each register is associated with the set of instruction points where it's live.
+
+\subsection{Interference Check}
+
+Two registers interfere if their live ranges overlap at any instruction point:
+
+\begin{lstlisting}[language=ML, caption=Checking Range Interference]
+let ranges_interfere range1 range2 =
+  not (InstrPointSet.is_empty (InstrPointSet.inter range1 range2))
+\end{lstlisting}
+
+\textbf{Example:}
+\begin{itemize}
+    \item r1 live at: \{(block 0, after instr 1), (block 0, after instr 2)\}
+    \item r2 live at: \{(block 0, after instr 2), (block 0, after instr 3)\}
+    \item Intersection: \{(block 0, after instr 2)\} $\neq \emptyset$
+    \item Result: They interfere (cannot merge)
+\end{itemize}
+
+\subsection{Merging Algorithm}
+
+The coalescing algorithm processes registers one by one, attempting to merge each into an existing group:
+
+\begin{lstlisting}[language=ML, caption=Register Merging]
+let merge_registers cfg =
+  let live_ranges = compute_live_ranges_from_liveness liveness in
+  
+  (* For each register, try to merge into existing group *)
+  let _, renaming, merged_count =
+    List.fold_left
+      (fun (groups, renaming, count) reg ->
+        let reg_range = RangeMap.find reg live_ranges in
+        
+        (* Find first group with non-overlapping range *)
+        let valid_group =
+          RangeMap.fold
+            (fun rep_reg group_range acc ->
+              match acc with
+              | Some _ -> acc  (* Already found *)
+              | None ->
+                  if not (ranges_interfere reg_range group_range)
+                  then Some rep_reg
+                  else None
+            )
+            groups None
+        in
+        
+        match valid_group with
+        | Some rep ->
+            (* Merge into existing group *)
+            let new_range = 
+              union_ranges reg_range (RangeMap.find rep groups) in
+            let new_groups = RangeMap.add rep new_range groups in
+            let new_renaming = RegisterMap.add reg rep renaming in
+            (new_groups, new_renaming, count + 1)
+        | None ->
+            (* Start new group *)
+            let new_groups = RangeMap.add reg reg_range groups in
+            let new_renaming = RegisterMap.add reg reg renaming in
+            (new_groups, new_renaming, count)
+      )
+      (RangeMap.empty, RegisterMap.empty, 0)
+      all_regs
+  in
+  renaming
+\end{lstlisting}
+
+\textbf{Note:} r\_in and r\_out are never merged. This may miss some optimization opportunities (e.g., eliminating \texttt{copy r\_out, r5}).
+\section{Allocation \& Spilling}
+
+The goal is to map remaining virtual registers to physical slots or memory.
+
+The allocator uses a frequency-based heuristic: count how many times each register appears (used or defined). The hottest registers get physical registers; the rest are spilled to memory.
+
+\subsection{Instruction Rewriting}
+When a register is spilled to memory, every instruction using it must be rewritten to load/store values. We use two swap registers (r\_a and r\_b) to handle this:
+\begin{itemize}
+    \item \textbf{r\_a:} Used for loading source operands and storing destination addresses
+    \item \textbf{r\_b:} Used for holding computed results before storing
+\end{itemize}
+For each instruction involving spilled register \texttt{r}:
+
+\textbf{Before Use (Load):}
+\begin{verbatim}
+loadi 0x1000 => r_a    (* Load memory address *)
+load r_a => r_a        (* Load value from memory *)
+\end{verbatim}
+
+\textbf{After Definition (Store, if live):}
+\begin{verbatim}
+loadi 0x1000 => r_a    (* Load memory address *)
+store r_b => r_a       (* Store value to memory *)
+\end{verbatim}
+
+\begin{lstlisting}[language=ML, caption=Spilling Code Rewriting]
+(* Helper: Load from memory if needed *)
+let load_if_needed alloc_map reg temp_reg =
+  match RegisterMap.find_opt reg alloc_map with
+  | Some (InRegister r) -> ([], r)  (* Already in register *)
+  | Some (InMemory addr) ->
+      (* Generate load sequence *)
+      ([LoadI (addr, temp_reg); Load (temp_reg, temp_reg)], temp_reg)
+  | None -> ([], reg)
+
+(* Helper: Store to memory if needed *)
+let store_if_needed alloc_map reg val_reg addr_temp_reg =
+  match RegisterMap.find_opt reg alloc_map with
+  | Some (InMemory addr) ->
+      [LoadI (addr, addr_temp_reg); Store (val_reg, addr_temp_reg)]
+  | _ -> []
+
+(* Rewrite binary register operation *)
+let rewrite_binop op r1 r2 rd alloc_map =
+  (* Load sources *)
+  let l1, t1 = load_if_needed alloc_map r1 r_a in
+  let l2, t2 = load_if_needed alloc_map r2 r_b in
+  
+  (* Determine destination *)
+  let op_dest, stores =
+    match RegisterMap.find_opt rd alloc_map with
+    | Some (InRegister phys_reg) ->
+        (* Destination in register: use directly *)
+        (phys_reg, [])
+    | Some (InMemory _) ->
+        (* Destination spilled: compute to r_b, then store *)
+        (r_b, store_if_needed alloc_map rd r_b r_a)
+    | None -> (rd, [])
+  in
+  
+  (* Final instruction sequence *)
+  l1 @ l2 @ [BinRegOp (op, t1, t2, op_dest)] @ stores
+\end{lstlisting}
+
+\subsection{Allocation Decision}
+
+After computing frequencies, allocate physical registers to the hottest variables:
+
+\begin{lstlisting}[language=ML, caption=Frequency-Based Allocation]
+let allocate_locations cfg n_target =
+  let available_slots = n_target - 4 in  (* Exclude I/O + swap *)
+  let freqs = get_frequencies cfg in
+  
+  (* Sort by frequency (highest first) *)
+  let sorted =
+    RegisterMap.bindings freqs
+    |> List.filter (fun (reg, _) -> 
+        reg <> r_in && reg <> r_out && reg <> r_a && reg <> r_b)
+    |> List.sort (fun (_, c1) (_, c2) -> compare c2 c1)
+    |> List.map fst
+  in
+  
+  (* Top (n-4) get physical registers, rest go to memory *)
+  let alloc_map, next_mem_addr =
+    List.fold_left
+      (fun (map, next_addr) (idx, reg) ->
+        if idx < available_slots then
+          (* Fits in physical register *)
+          (RegisterMap.add reg (InRegister reg) map, next_addr)
+        else
+          (* Spilled to memory at offset address *)
+          let mem_addr = 0x1000 + next_addr in
+          (RegisterMap.add reg (InMemory mem_addr) map, next_addr + 1)
+      )
+      (RegisterMap.empty, 0)
+      (List.mapi (fun i r -> (i, r)) sorted)
+  in
+  
+  (* Add I/O registers (always in physical registers) *)
+  alloc_map
+  |> RegisterMap.add r_in (InRegister r_in)
+  |> RegisterMap.add r_out (InRegister r_out)
+\end{lstlisting}
+
+\textbf{Memory Base Address:} Spilled variables use addresses \texttt{0x1000, 0x1001, 0x1002, ...} This distinguishes them visually from small integer constants.
+
+\end{document}

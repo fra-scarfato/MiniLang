@@ -10,12 +10,10 @@
  (name MiniImpCompiler)
  (libraries MiniLang))
 
-; (executable
-;  (public_name MiniFunInterpreter)
-;  (name MiniFunInterpreter)
-;  (preprocess
-;   (pps ppx_deriving.show))
-;  (libraries MiniLang))
+(executable
+ (public_name MiniFunInterpreter)
+ (name MiniFunInterpreter)
+ (libraries MiniLang))
 
 ; (executable
 ;  (public_name MiniImpCompiler)
