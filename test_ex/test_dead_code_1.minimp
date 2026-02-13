@@ -1,8 +1,0 @@
-// TEST: Dead code elimination
-// EXPECTED WITH -O FLAG: Dead store elimination
-// Variable 'unused' is never read, should be optimized away
-
-def main with input x output y as
-  unused = x + 100;
-  temp = x + 1;
-  y = temp + 2

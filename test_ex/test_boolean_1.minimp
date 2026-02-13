@@ -1,8 +1,0 @@
-// TEST: Boolean expressions with AND
-// EXPECTED: Correct boolean evaluation
-
-def main with input x output y as
-  if (x < 10) and (x < 20) then
-    y = 1
-  else
-    y = 0

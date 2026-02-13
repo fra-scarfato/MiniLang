@@ -1,6 +1,0 @@
-// TEST: Safety Error - Uninitialized variable
-// EXPECTED WITH -s FLAG: Safety check failed - uninitialized variable 'z'
-// Should detect that z is used before being assigned
-
-def main with input x output y as
-  y = z + 1

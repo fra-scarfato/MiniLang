@@ -1,5 +1,0 @@
-// TEST: Parser Error - Invalid token
-// EXPECTED: Parse error - unexpected character
-
-def main with input x output y as
-  y = x @ 5

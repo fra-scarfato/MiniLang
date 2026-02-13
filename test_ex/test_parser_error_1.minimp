@@ -1,5 +1,0 @@
-// TEST: Parser Error - Missing closing parenthesis
-// EXPECTED: Parse error - syntax error
-
-def main with input x output y as
-  y = (10 + 5

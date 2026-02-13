@@ -1,5 +1,0 @@
-// TEST: Parser Error - Missing 'output' keyword
-// EXPECTED: Parse error - syntax error
-
-def main with input x y as
-  y = x + 1

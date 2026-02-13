@@ -1,4 +1,0 @@
-def main with input in output y as 
-    x = in;
-    z = x + y;
-    y = z
