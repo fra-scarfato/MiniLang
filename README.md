@@ -57,13 +57,6 @@ dune build
 dune install
 ```
 
-### Build Artifacts
-
-After building, executables are available at:
-- `_build/default/bin/MiniImpCompiler.exe`
-- `_build/default/bin/MiniFunInterpreter.exe`
-- `_build/default/bin/MiniImpInterpreter.exe`
-
 ## Usage
 
 ### MiniImp Compiler
