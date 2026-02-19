@@ -47,7 +47,7 @@ MiniLang is a suite of three educational programming languages showcasing differ
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/MiniLang.git
+git clone https://github.com/fra-scarfato/MiniLang.git
 cd MiniLang
 
 # Build all executables
